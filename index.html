@@ -73,7 +73,10 @@
     font-size: 40px; font-weight: 300; cursor: pointer;
   }
   .tile.plus:active { border-color: var(--accent); color: var(--accent); }
-  .tile.marked { border: 3px solid var(--accent); }
+  .tile.marked {
+    border: 5px solid #4da3ff;
+    box-shadow: 0 0 14px rgba(77, 163, 255, 0.55);
+  }
 
   /* Kurzes Aufleuchten bei Kursbewegung seit dem letzten Update */
   .tile.flash-up { animation: flashUp 1.4s ease-out; }
@@ -240,7 +243,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v14";
+  var VERSION = "v15";
 
   // Diese Werte bekommen einen blauen Rahmen zur Kennzeichnung
   var MARKED = ["VWCE.DE", "IUSN.DE"];
