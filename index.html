@@ -74,8 +74,13 @@
   }
   .tile.plus:active { border-color: var(--accent); color: var(--accent); }
   .tile.marked {
-    border: 5px solid #4da3ff;
-    box-shadow: 0 0 14px rgba(77, 163, 255, 0.55);
+    position: relative;
+    overflow: hidden;
+  }
+  .tile.marked::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 12px;
+    background: #4da3ff;
   }
 
   /* Kurzes Aufleuchten bei Kursbewegung seit dem letzten Update */
@@ -243,10 +248,13 @@
 (function () {
   "use strict";
 
-  var VERSION = "v15";
+  var VERSION = "v16";
 
-  // Diese Werte bekommen einen blauen Rahmen zur Kennzeichnung
+  // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
+  function labelWithMark(sym) {
+    return (MARKED.indexOf(sym) !== -1 ? "★ " : "") + labelFor(sym);
+  }
 
   var DEFAULT_SYMBOLS = ["SLVR.DE","RDC.DE","ADN1.DE","U6Z.DE","IUSN.DE","VWCE.DE","18MF.DE","VVSM.DE","DE000LS9UTF2","DE000LS9UK98"];
 
@@ -375,7 +383,7 @@
       var d = document.createElement("div");
       d.className = "tile pending";
       d.innerHTML = '<div class="sym"></div><div class="pct">…</div>';
-      d.querySelector(".sym").textContent = labelFor(sym);
+      d.querySelector(".sym").textContent = labelWithMark(sym);
       attachLongPress(d, sym);
       grid.appendChild(d);
     });
@@ -408,7 +416,7 @@
         d.className = "tile pending";
         d.innerHTML = '<div class="sym"></div><div class="pct">–</div><div class="price">keine Daten</div>';
       }
-      d.querySelector(".sym").textContent = labelFor(q.symbol);
+      d.querySelector(".sym").textContent = labelWithMark(q.symbol);
       attachLongPress(d, q.symbol);
       grid.appendChild(d);
     });
