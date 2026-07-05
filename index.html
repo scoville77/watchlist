@@ -73,6 +73,7 @@
     font-size: 40px; font-weight: 300; cursor: pointer;
   }
   .tile.plus:active { border-color: var(--accent); color: var(--accent); }
+  .tile.marked { border: 3px solid var(--accent); }
 
   /* Kurzes Aufleuchten bei Kursbewegung seit dem letzten Update */
   .tile.flash-up { animation: flashUp 1.4s ease-out; }
@@ -239,7 +240,10 @@
 (function () {
   "use strict";
 
-  var VERSION = "v13";
+  var VERSION = "v14";
+
+  // Diese Werte bekommen einen blauen Rahmen zur Kennzeichnung
+  var MARKED = ["VWCE.DE", "IUSN.DE"];
 
   var DEFAULT_SYMBOLS = ["SLVR.DE","RDC.DE","ADN1.DE","U6Z.DE","IUSN.DE","VWCE.DE","18MF.DE","VVSM.DE","DE000LS9UTF2","DE000LS9UK98"];
 
@@ -384,6 +388,7 @@
       var d = document.createElement("div");
       if (q.ok) {
         d.className = "tile";
+        if (MARKED.indexOf(q.symbol) !== -1) d.className += " marked";
         // Aufleuchten, wenn sich der Kurs seit dem letzten Update bewegt hat
         if (previous && previous.ok) {
           if (q.price > previous.price) d.className += " flash-up";
