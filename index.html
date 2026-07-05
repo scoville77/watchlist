@@ -311,21 +311,25 @@
         if (!Array.isArray(history) || !history.length) throw new Error("nodata");
 
         // Aktueller Kurs: letzter Intraday-Punkt, sonst letzter Tagesschluss
-        var price = null;
+        var price = null, priceTs = null;
         if (Array.isArray(intraday) && intraday.length) {
           price = intraday[intraday.length - 1][1];
+          priceTs = intraday[intraday.length - 1][0];
         }
-        // Vortages-Schlusskurs: letzter History-Eintrag vor dem heutigen Tag
-        var todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        var prev = null, lastClose = null;
+        if (price === null) {
+          price = history[history.length - 1][1];
+          priceTs = history[history.length - 1][0];
+        }
+        // Vergleichsbasis: Schlusskurs des Handelstags VOR dem Tag des
+        // aktuellen Kurses (nicht "vor heute" - sonst stimmt es am
+        // Wochenende nicht, wenn der letzte Kurs von Freitag stammt)
+        var refDay = new Date(priceTs);
+        refDay.setHours(0, 0, 0, 0);
+        var prev = null;
         for (var i = history.length - 1; i >= 0; i--) {
-          var ts = history[i][0], val = history[i][1];
-          if (lastClose === null) lastClose = val;
-          if (ts < todayStart.getTime()) { prev = val; break; }
+          if (history[i][0] < refDay.getTime()) { prev = history[i][1]; break; }
         }
-        if (price === null) price = lastClose;
-        if (prev === null) prev = lastClose;
+        if (prev === null) prev = history[history.length - 1][1];
         if (!price || !prev) throw new Error("nodata");
         return { symbol: isin, ok: true, price: price, pct: (price - prev) / prev * 100 };
       })
