@@ -372,6 +372,14 @@
     var symbols = getSymbols();
     Promise.all(symbols.map(function (s) { return fetchQuote(s); }))
       .then(function (results) {
+        // Dynamische Reihenfolge: beste Performance links oben,
+        // Werte ohne Daten ans Ende
+        results.sort(function (a, b) {
+          if (a.ok && !b.ok) return -1;
+          if (!a.ok && b.ok) return 1;
+          if (!a.ok && !b.ok) return 0;
+          return b.pct - a.pct;
+        });
         renderQuotes(results);
         var now = new Date();
         statusEl.textContent = "Stand: " +
