@@ -63,6 +63,39 @@
   .tile .pct { font-size: 19px; font-weight: 900; letter-spacing: -0.02em; }
   .tile .price { font-size: 11px; opacity: 0.85; }
   .tile.pending { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  .tile {
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .tile.plus {
+    background: transparent; border: 2px dashed var(--line); color: var(--muted);
+    font-size: 40px; font-weight: 300; cursor: pointer;
+  }
+  .tile.plus:active { border-color: var(--accent); color: var(--accent); }
+
+  /* Detail-Panel (von unten) */
+  #detailBackdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    display: none; z-index: 20;
+  }
+  #detailBackdrop.open { display: block; }
+  #detailSheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+    background: var(--panel); border-radius: 20px 20px 0 0;
+    padding: 20px 20px calc(env(safe-area-inset-bottom) + 20px);
+    transform: translateY(105%); transition: transform 0.22s ease-out;
+  }
+  #detailSheet.open { transform: translateY(0); }
+  #detailSheet h2 { font-size: 18px; font-weight: 800; margin-bottom: 2px; }
+  #detailSheet .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .detail-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 9px 0; border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .detail-row .k { color: var(--muted); }
+  .detail-row .v { font-weight: 600; text-align: right; }
+  .btn.danger { background: #b3261e; }
 
   #status { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
   #error { text-align: center; color: #ff8a80; font-size: 13px; padding: 8px 0; display: none; }
@@ -137,6 +170,19 @@
   </div>
   <div id="symList"></div>
   <button class="btn" id="doneBtn">Fertig</button>
+</div>
+
+<!-- Detail-Panel (langes Drücken auf eine Kachel) -->
+<div id="detailBackdrop"></div>
+<div id="detailSheet">
+  <h2 id="detailName">–</h2>
+  <div class="sub" id="detailSymbol">–</div>
+  <div class="detail-row"><span class="k">Kurs</span><span class="v" id="detailPrice">–</span></div>
+  <div class="detail-row"><span class="k">Veränderung</span><span class="v" id="detailPct">–</span></div>
+  <div class="detail-row"><span class="k">Börse / Quelle</span><span class="v" id="detailExchange">–</span></div>
+  <div class="detail-row"><span class="k">Kurszeit</span><span class="v" id="detailTime">–</span></div>
+  <div class="detail-row"><span class="k">Währung</span><span class="v" id="detailCurrency">–</span></div>
+  <button class="btn danger" id="detailDeleteBtn">Aus Watchlist entfernen</button>
 </div>
 
 <script>
@@ -225,6 +271,45 @@
   var refreshBtn = document.getElementById("refreshBtn");
   var editSheet = document.getElementById("editSheet");
 
+  // Letzte Kursdaten je Symbol (für das Detail-Panel)
+  var lastQuotes = {};
+
+  // Langdruck-Erkennung (550 ms, bricht bei Bewegung ab)
+  function attachLongPress(el, sym) {
+    var timer = null, startX = 0, startY = 0, fired = false;
+    function clear() { if (timer) { clearTimeout(timer); timer = null; } }
+    el.addEventListener("pointerdown", function (e) {
+      fired = false; startX = e.clientX; startY = e.clientY;
+      clear();
+      timer = setTimeout(function () {
+        fired = true;
+        openDetails(sym);
+      }, 550);
+    });
+    el.addEventListener("pointermove", function (e) {
+      if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) clear();
+    });
+    el.addEventListener("pointerup", clear);
+    el.addEventListener("pointercancel", clear);
+    el.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    // fired-Flag verhindert versehentliche Klick-Aktionen nach Langdruck
+    el.addEventListener("click", function (e) { if (fired) { e.stopPropagation(); e.preventDefault(); } }, true);
+  }
+
+  function appendPlusTile() {
+    var d = document.createElement("div");
+    d.className = "tile plus";
+    d.textContent = "+";
+    d.setAttribute("role", "button");
+    d.setAttribute("aria-label", "Symbol hinzufügen");
+    d.addEventListener("click", function () {
+      renderSymList();
+      editSheet.classList.add("open");
+      setTimeout(function () { document.getElementById("newSymInput").focus(); }, 50);
+    });
+    grid.appendChild(d);
+  }
+
   function renderPending() {
     grid.innerHTML = "";
     getSymbols().forEach(function (sym) {
@@ -232,14 +317,17 @@
       d.className = "tile pending";
       d.innerHTML = '<div class="sym"></div><div class="pct">…</div>';
       d.querySelector(".sym").textContent = labelFor(sym);
+      attachLongPress(d, sym);
       grid.appendChild(d);
     });
+    appendPlusTile();
   }
 
   function renderQuotes(quotes) {
     grid.innerHTML = "";
     var failures = 0;
     quotes.forEach(function (q) {
+      lastQuotes[q.symbol] = q;
       var d = document.createElement("div");
       if (q.ok) {
         d.className = "tile";
@@ -255,13 +343,55 @@
         d.innerHTML = '<div class="sym"></div><div class="pct">–</div><div class="price">keine Daten</div>';
       }
       d.querySelector(".sym").textContent = labelFor(q.symbol);
+      attachLongPress(d, q.symbol);
       grid.appendChild(d);
     });
+    appendPlusTile();
     if (failures === quotes.length && quotes.length > 0) {
       errorEl.textContent = "Keine Daten geladen. Hinweis: In der Vorschau (z. B. in der Claude-App) sind Kursabrufe blockiert – bitte die Datei in Safari öffnen. Dort ggf. in 1–2 Minuten erneut versuchen.";
       errorEl.style.display = "block";
     }
   }
+
+  // ---- Detail-Panel ----
+  var detailBackdrop = document.getElementById("detailBackdrop");
+  var detailSheetEl = document.getElementById("detailSheet");
+  var detailSymbolCurrent = null;
+
+  function openDetails(sym) {
+    detailSymbolCurrent = sym;
+    var q = lastQuotes[sym];
+    document.getElementById("detailName").textContent = (q && q.name) || labelFor(sym);
+    document.getElementById("detailSymbol").textContent = sym;
+    document.getElementById("detailPrice").textContent =
+      q && q.ok ? q.price.toFixed(2) + (q.currency ? " " + q.currency : "") : "–";
+    document.getElementById("detailPct").textContent =
+      q && q.ok ? (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2) + " % zum Vortagesschluss" : "keine Daten";
+    document.getElementById("detailExchange").textContent = (q && q.exchange) || (isIsin(sym) ? "Lang & Schwarz" : "Yahoo Finance");
+    document.getElementById("detailTime").textContent =
+      q && q.time ? new Date(q.time).toLocaleString("de-DE", {
+        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
+      }) + " Uhr" : "–";
+    document.getElementById("detailCurrency").textContent = (q && q.currency) || "–";
+    detailBackdrop.classList.add("open");
+    detailSheetEl.classList.add("open");
+  }
+
+  function closeDetails() {
+    detailBackdrop.classList.remove("open");
+    detailSheetEl.classList.remove("open");
+    detailSymbolCurrent = null;
+  }
+
+  detailBackdrop.addEventListener("click", closeDetails);
+  document.getElementById("detailDeleteBtn").addEventListener("click", function () {
+    if (!detailSymbolCurrent) return;
+    var arr = getSymbols().filter(function (s) { return s !== detailSymbolCurrent; });
+    setSymbols(arr);
+    closeDetails();
+    renderPending();
+    refresh();
+  });
 
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
   function fetchQuote(sym) {
@@ -283,24 +413,29 @@
   }
 
   function lsInstrumentId(isin) {
-    var cached = storeGet("lsid_" + isin);
-    if (cached) return Promise.resolve(cached);
+    var cached = storeGet("lsid2_" + isin);
+    if (cached) {
+      try { return Promise.resolve(JSON.parse(cached)); } catch (e) {}
+    }
     var url = "https://www.ls-tc.de/_rpc/json/.lstc/instrument/search/main?q=" +
               encodeURIComponent(isin) + "&localeId=2";
     return proxiedJson(url).then(function (arr) {
       var hit = Array.isArray(arr) && arr.length ? arr[0] : null;
       var id = hit && (hit.instrumentId || hit.id);
       if (!id) throw new Error("isinnotfound");
-      storeSet("lsid_" + isin, String(id));
-      return String(id);
+      var info = { id: String(id), name: (hit.displayname || isin) };
+      storeSet("lsid2_" + isin, JSON.stringify(info));
+      return info;
     });
   }
 
   function fetchQuoteLS(isin) {
+    var lsInfo = null;
     return lsInstrumentId(isin)
-      .then(function (id) {
+      .then(function (info) {
+        lsInfo = info;
         var url = "https://www.ls-tc.de/_rpc/json/instrument/chart/dataForInstrument" +
-                  "?container=chart1&instrumentId=" + id +
+                  "?container=chart1&instrumentId=" + info.id +
                   "&marketId=1&quotetype=mid&series=intraday,history&type=&localeId=2";
         return proxiedJson(url);
       })
@@ -331,7 +466,13 @@
         }
         if (prev === null) prev = history[history.length - 1][1];
         if (!price || !prev) throw new Error("nodata");
-        return { symbol: isin, ok: true, price: price, pct: (price - prev) / prev * 100 };
+        return {
+          symbol: isin, ok: true, price: price, pct: (price - prev) / prev * 100,
+          name: lsInfo && lsInfo.name ? lsInfo.name : isin,
+          exchange: "Lang & Schwarz",
+          currency: "EUR",
+          time: priceTs
+        };
       })
       .catch(function () {
         return { symbol: isin, ok: false };
@@ -357,7 +498,13 @@
         var price = meta && meta.regularMarketPrice;
         var prev = meta && (meta.chartPreviousClose || meta.previousClose);
         if (price && prev) {
-          return { symbol: sym, ok: true, price: price, pct: (price - prev) / prev * 100 };
+          return {
+            symbol: sym, ok: true, price: price, pct: (price - prev) / prev * 100,
+            name: meta.longName || meta.shortName || sym,
+            exchange: meta.fullExchangeName || meta.exchangeName || "Yahoo Finance",
+            currency: meta.currency || "",
+            time: meta.regularMarketTime ? meta.regularMarketTime * 1000 : null
+          };
         }
         throw new Error("nodata");
       })
