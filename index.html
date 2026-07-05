@@ -564,6 +564,7 @@
     loading = true;
     errorEl.style.display = "none";
     refreshBtn.classList.add("spinning");
+    statusEl.textContent = "Aktualisiere…";
 
     var symbols = getSymbols();
     Promise.all(symbols.map(function (s) { return fetchQuote(s); }))
@@ -576,10 +577,18 @@
           if (!a.ok && !b.ok) return 0;
           return b.pct - a.pct;
         });
-        renderQuotes(results);
+        try {
+          renderQuotes(results);
+        } catch (e) {
+          errorEl.textContent = "Anzeigefehler: " + e.message;
+          errorEl.style.display = "block";
+        }
         var now = new Date();
         statusEl.textContent = "Stand: " +
-          now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+          now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      })
+      .catch(function (e) {
+        statusEl.textContent = "Aktualisierung fehlgeschlagen";
       })
       .finally(function () {
         loading = false;
