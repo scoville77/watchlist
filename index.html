@@ -239,6 +239,8 @@
 (function () {
   "use strict";
 
+  var VERSION = "v13";
+
   var DEFAULT_SYMBOLS = ["SLVR.DE","RDC.DE","ADN1.DE","U6Z.DE","IUSN.DE","VWCE.DE","18MF.DE","VVSM.DE","DE000LS9UTF2","DE000LS9UK98"];
 
   // Kurznamen für die Kacheln (optional, sonst wird das Symbol angezeigt)
@@ -605,7 +607,8 @@
         }
         var now = new Date();
         statusEl.textContent = "Stand: " +
-          now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+          now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
+          " · " + VERSION;
       })
       .catch(function (e) {
         statusEl.textContent = "Aktualisierung fehlgeschlagen";
