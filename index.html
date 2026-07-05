@@ -445,26 +445,35 @@
         var history = series && series.history && series.history.data;
         if (!Array.isArray(history) || !history.length) throw new Error("nodata");
 
-        // Aktueller Kurs: letzter Intraday-Punkt, sonst letzter Tagesschluss
+        // Broker-Logik: Wochenendkurse (L&S taxt teils Sa/So) werden ignoriert.
+        // Basis ist immer der letzte volle Werktags-Handelstag.
+        function isWeekday(ts) {
+          var d = new Date(ts).getDay();
+          return d >= 1 && d <= 5;
+        }
+        var histWD = history.filter(function (p) { return isWeekday(p[0]); });
+        if (!histWD.length) histWD = history;
+
+        // Aktueller Kurs: letzter Intraday-Punkt, sofern er von einem
+        // Werktag stammt - sonst letzter Werktags-Schlusskurs
         var price = null, priceTs = null;
-        if (Array.isArray(intraday) && intraday.length) {
+        if (Array.isArray(intraday) && intraday.length &&
+            isWeekday(intraday[intraday.length - 1][0])) {
           price = intraday[intraday.length - 1][1];
           priceTs = intraday[intraday.length - 1][0];
         }
         if (price === null) {
-          price = history[history.length - 1][1];
-          priceTs = history[history.length - 1][0];
+          price = histWD[histWD.length - 1][1];
+          priceTs = histWD[histWD.length - 1][0];
         }
-        // Vergleichsbasis: Schlusskurs des Handelstags VOR dem Tag des
-        // aktuellen Kurses (nicht "vor heute" - sonst stimmt es am
-        // Wochenende nicht, wenn der letzte Kurs von Freitag stammt)
+        // Vergleichsbasis: Werktags-Schlusskurs vor dem Tag des aktuellen Kurses
         var refDay = new Date(priceTs);
         refDay.setHours(0, 0, 0, 0);
         var prev = null;
-        for (var i = history.length - 1; i >= 0; i--) {
-          if (history[i][0] < refDay.getTime()) { prev = history[i][1]; break; }
+        for (var i = histWD.length - 1; i >= 0; i--) {
+          if (histWD[i][0] < refDay.getTime()) { prev = histWD[i][1]; break; }
         }
-        if (prev === null) prev = history[history.length - 1][1];
+        if (prev === null) prev = histWD[histWD.length - 1][1];
         if (!price || !prev) throw new Error("nodata");
         return {
           symbol: isin, ok: true, price: price, pct: (price - prev) / prev * 100,
