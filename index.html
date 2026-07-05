@@ -600,16 +600,25 @@
     renderSymList();
     editSheet.classList.add("open");
   });
-  document.getElementById("addSymBtn").addEventListener("click", function () {
+  function addSymbolFromInput() {
     var input = document.getElementById("newSymInput");
     var s = input.value.trim().toUpperCase();
-    if (!s) return;
+    if (!s) return false;
     var arr = getSymbols();
     if (arr.indexOf(s) === -1) { arr.push(s); setSymbols(arr); }
     input.value = "";
     renderSymList();
+    return true;
+  }
+
+  document.getElementById("addSymBtn").addEventListener("click", addSymbolFromInput);
+  // Enter/„Return" auf der Tastatur fügt ebenfalls hinzu
+  document.getElementById("newSymInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); addSymbolFromInput(); }
   });
   document.getElementById("doneBtn").addEventListener("click", function () {
+    // Falls noch Text im Feld steht: automatisch übernehmen statt verwerfen
+    addSymbolFromInput();
     editSheet.classList.remove("open");
     renderPending();
     refresh();
