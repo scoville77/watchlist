@@ -170,11 +170,20 @@
 
   // Yahoo Finance erlaubt keine direkten Browser-Abrufe (CORS),
   // deshalb laufen die Anfragen über einen öffentlichen Proxy.
-  // Es gibt zwei; fällt der erste aus, springt der zweite ein.
+  // Drei Dienste als Kette; hängt oder scheitert einer, springt der nächste ein.
   var PROXIES = [
+    function (url) { return "https://corsproxy.io/?url=" + encodeURIComponent(url); },
     function (url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); },
-    function (url) { return "https://corsproxy.io/?url=" + encodeURIComponent(url); }
+    function (url) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url); }
   ];
+
+  // fetch mit hartem Zeitlimit, damit ein hängender Proxy nicht alles blockiert
+  function fetchWithTimeout(url, ms) {
+    var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (controller) controller.abort(); }, ms || 8000);
+    return fetch(url, controller ? { signal: controller.signal } : {})
+      .finally(function () { clearTimeout(timer); });
+  }
 
   // ---- Speicher (localStorage mit Fallback) ----
   var memStore = {};
@@ -265,7 +274,7 @@
   function proxiedJson(url, proxyIndex) {
     proxyIndex = proxyIndex || 0;
     if (proxyIndex >= PROXIES.length) return Promise.reject(new Error("allproxiesfailed"));
-    return fetch(PROXIES[proxyIndex](url))
+    return fetchWithTimeout(PROXIES[proxyIndex](url))
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
         return r.json();
@@ -333,7 +342,7 @@
     if (proxyIndex >= PROXIES.length) {
       return Promise.resolve({ symbol: sym, ok: false });
     }
-    return fetch(PROXIES[proxyIndex](yahooUrl))
+    return fetchWithTimeout(PROXIES[proxyIndex](yahooUrl))
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
         return r.json();
