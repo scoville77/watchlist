@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e1116">
+<title>Watchlist</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='6' y='6' width='42' height='42' rx='10' fill='%23127a3a'/%3E%3Crect x='52' y='6' width='42' height='42' rx='10' fill='%2399e0a8'/%3E%3Crect x='6' y='52' width='42' height='42' rx='10' fill='%23f0b7b0'/%3E%3Crect x='52' y='52' width='42' height='42' rx='10' fill='%23941414'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #1a2029;
+    --line: #2a3340;
+    --text: #e8ecf1;
+    --muted: #8b96a5;
+    --accent: #3d8bfd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 2px 14px;
+  }
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .header-btns { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .icon-btn:active { transform: scale(0.94); }
+  .icon-btn.spinning svg { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .icon-btn.spinning svg { animation: none; }
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 10px;
+  }
+  .tile {
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 3px; padding: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .sym { font-size: 13px; font-weight: 800; letter-spacing: 0.02em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile .pct { font-size: 19px; font-weight: 900; letter-spacing: -0.02em; }
+  .tile .price { font-size: 11px; opacity: 0.85; }
+  .tile.pending { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+
+  #status { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
+  #error { text-align: center; color: #ff8a80; font-size: 13px; padding: 8px 0; display: none; }
+
+  .sheet {
+    position: fixed; inset: 0; background: var(--bg);
+    padding: calc(env(safe-area-inset-top) + 20px) 20px 40px;
+    overflow-y: auto; display: none; z-index: 10;
+  }
+  .sheet.open { display: block; }
+  .sheet h2 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  .sheet p { color: var(--muted); font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
+  .field {
+    width: 100%; padding: 13px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    font-size: 16px; outline: none;
+  }
+  .field:focus { border-color: var(--accent); }
+  .btn {
+    padding: 14px; border-radius: 12px; border: none;
+    background: var(--accent); color: #fff; font-size: 16px; font-weight: 700;
+    cursor: pointer; width: 100%; margin-top: 20px;
+  }
+  .btn:active { opacity: 0.85; }
+
+  .sym-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 4px; border-bottom: 1px solid var(--line);
+    font-weight: 600; font-size: 15px;
+  }
+  .sym-row button {
+    background: none; border: none; color: #ff6b60;
+    font-size: 14px; font-weight: 700; cursor: pointer; padding: 6px 8px;
+  }
+  .add-row { display: flex; gap: 8px; margin: 4px 0 6px; }
+  .add-row .field { flex: 1; text-transform: uppercase; }
+  .add-row .add-btn {
+    width: 52px; border-radius: 12px; border: none; background: var(--accent);
+    color: #fff; font-size: 22px; font-weight: 700; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Watchlist</h1>
+  <div class="header-btns">
+    <button class="icon-btn" id="refreshBtn" aria-label="Aktualisieren">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="editBtn" aria-label="Symbole bearbeiten">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<div id="error"></div>
+<div id="grid"></div>
+<div id="status"></div>
+
+<!-- Symbole verwalten -->
+<div class="sheet" id="editSheet">
+  <h2>Symbole</h2>
+  <p>Deutsche Aktien mit Endung .DE (z.&nbsp;B. SAP.DE), US-Aktien als AAPL usw. Wikifolios und Zertifikate direkt als ISIN eintragen (z.&nbsp;B. DE000LS9UTF2) – die laufen über Lang &amp; Schwarz.</p>
+  <div class="add-row">
+    <input class="field" id="newSymInput" placeholder="z. B. SAP.DE" autocapitalize="characters" autocorrect="off">
+    <button class="add-btn" id="addSymBtn">+</button>
+  </div>
+  <div id="symList"></div>
+  <button class="btn" id="doneBtn">Fertig</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var DEFAULT_SYMBOLS = ["SLVR.DE","RDC.DE","ADN1.DE","U6Z.DE","IUSN.DE","VWCE.DE","18MF.DE","VVSM.DE","DE000LS9UTF2","DE000LS9UK98"];
+
+  // Kurznamen für die Kacheln (optional, sonst wird das Symbol angezeigt)
+  var LABELS = {
+    "SLVR.DE": "SILBER MIN.",
+    "RDC.DE": "REDCARE",
+    "ADN1.DE": "ADESSO",
+    "U6Z.DE": "URAN. EN.",
+    "IUSN.DE": "WORLD SC",
+    "VWCE.DE": "ALL-WORLD",
+    "18MF.DE": "USA 2X LEV",
+    "VVSM.DE": "SEMICOND.",
+    "DE000LS9UTF2": "WF GLOBAL W.",
+    "DE000LS9UK98": "WF SZEW"
+  };
+  function labelFor(sym) {
+    return LABELS[sym] || sym.replace(/\.DE$/i, "");
+  }
+
+  // ISIN-Erkennung: Werte wie DE000LS9UTF2 laufen über Lang & Schwarz statt Yahoo
+  function isIsin(s) {
+    return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(s);
+  }
+  var MAX_PCT = 3.0; // ab ±3 % dunkelste Farbe
+
+  // Yahoo Finance erlaubt keine direkten Browser-Abrufe (CORS),
+  // deshalb laufen die Anfragen über einen öffentlichen Proxy.
+  // Es gibt zwei; fällt der erste aus, springt der zweite ein.
+  var PROXIES = [
+    function (url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); },
+    function (url) { return "https://corsproxy.io/?url=" + encodeURIComponent(url); }
+  ];
+
+  // ---- Speicher (localStorage mit Fallback) ----
+  var memStore = {};
+  function storeGet(k) {
+    try { return localStorage.getItem(k); } catch (e) { return memStore[k] || null; }
+  }
+  function storeSet(k, v) {
+    try { localStorage.setItem(k, v); } catch (e) { memStore[k] = v; }
+  }
+
+  function getSymbols() {
+    var raw = storeGet("symbols_de");
+    if (!raw) return DEFAULT_SYMBOLS.slice();
+    try { var arr = JSON.parse(raw); return Array.isArray(arr) && arr.length ? arr : DEFAULT_SYMBOLS.slice(); }
+    catch (e) { return DEFAULT_SYMBOLS.slice(); }
+  }
+  function setSymbols(arr) { storeSet("symbols_de", JSON.stringify(arr)); }
+
+  // ---- Farblogik: hell -> dunkel, linear interpoliert ----
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function tileColor(pct) {
+    var t = Math.min(Math.abs(pct) / MAX_PCT, 1);
+    var light, dark;
+    if (pct >= 0) { light = [199,237,199]; dark = [0,107,41]; }
+    else          { light = [245,204,199]; dark = [140,13,13]; }
+    return "rgb(" +
+      Math.round(lerp(light[0], dark[0], t)) + "," +
+      Math.round(lerp(light[1], dark[1], t)) + "," +
+      Math.round(lerp(light[2], dark[2], t)) + ")";
+  }
+  function textColor(pct) {
+    return Math.abs(pct) > 1.2 ? "#ffffff" : "rgba(0,0,0,0.78)";
+  }
+
+  // ---- DOM ----
+  var grid = document.getElementById("grid");
+  var statusEl = document.getElementById("status");
+  var errorEl = document.getElementById("error");
+  var refreshBtn = document.getElementById("refreshBtn");
+  var editSheet = document.getElementById("editSheet");
+
+  function renderPending() {
+    grid.innerHTML = "";
+    getSymbols().forEach(function (sym) {
+      var d = document.createElement("div");
+      d.className = "tile pending";
+      d.innerHTML = '<div class="sym"></div><div class="pct">…</div>';
+      d.querySelector(".sym").textContent = labelFor(sym);
+      grid.appendChild(d);
+    });
+  }
+
+  function renderQuotes(quotes) {
+    grid.innerHTML = "";
+    var failures = 0;
+    quotes.forEach(function (q) {
+      var d = document.createElement("div");
+      if (q.ok) {
+        d.className = "tile";
+        d.style.background = tileColor(q.pct);
+        d.style.color = textColor(q.pct);
+        d.innerHTML =
+          '<div class="sym"></div>' +
+          '<div class="pct">' + (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2) + '&nbsp;%</div>' +
+          '<div class="price">' + q.price.toFixed(2) + '</div>';
+      } else {
+        failures++;
+        d.className = "tile pending";
+        d.innerHTML = '<div class="sym"></div><div class="pct">–</div><div class="price">keine Daten</div>';
+      }
+      d.querySelector(".sym").textContent = labelFor(q.symbol);
+      grid.appendChild(d);
+    });
+    if (failures === quotes.length && quotes.length > 0) {
+      errorEl.textContent = "Keine Daten geladen. Hinweis: In der Vorschau (z. B. in der Claude-App) sind Kursabrufe blockiert – bitte die Datei in Safari öffnen. Dort ggf. in 1–2 Minuten erneut versuchen.";
+      errorEl.style.display = "block";
+    }
+  }
+
+  // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
+  function fetchQuote(sym) {
+    return isIsin(sym) ? fetchQuoteLS(sym) : fetchQuoteYahoo(sym);
+  }
+
+  // ---- Lang & Schwarz (inoffiziell), z. B. für Wikifolio-Zertifikate ----
+  // Schritt 1: ISIN -> interne Instrument-ID (wird lokal gemerkt)
+  // Schritt 2: Chartdaten mit Intraday-Kurs + Tagesschlusskursen
+  function proxiedJson(url, proxyIndex) {
+    proxyIndex = proxyIndex || 0;
+    if (proxyIndex >= PROXIES.length) return Promise.reject(new Error("allproxiesfailed"));
+    return fetch(PROXIES[proxyIndex](url))
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.json();
+      })
+      .catch(function () { return proxiedJson(url, proxyIndex + 1); });
+  }
+
+  function lsInstrumentId(isin) {
+    var cached = storeGet("lsid_" + isin);
+    if (cached) return Promise.resolve(cached);
+    var url = "https://www.ls-tc.de/_rpc/json/.lstc/instrument/search/main?q=" +
+              encodeURIComponent(isin) + "&localeId=2";
+    return proxiedJson(url).then(function (arr) {
+      var hit = Array.isArray(arr) && arr.length ? arr[0] : null;
+      var id = hit && (hit.instrumentId || hit.id);
+      if (!id) throw new Error("isinnotfound");
+      storeSet("lsid_" + isin, String(id));
+      return String(id);
+    });
+  }
+
+  function fetchQuoteLS(isin) {
+    return lsInstrumentId(isin)
+      .then(function (id) {
+        var url = "https://www.ls-tc.de/_rpc/json/instrument/chart/dataForInstrument" +
+                  "?container=chart1&instrumentId=" + id +
+                  "&marketId=1&quotetype=mid&series=intraday,history&type=&localeId=2";
+        return proxiedJson(url);
+      })
+      .then(function (data) {
+        var series = data && data.series;
+        var intraday = series && series.intraday && series.intraday.data;
+        var history = series && series.history && series.history.data;
+        if (!Array.isArray(history) || !history.length) throw new Error("nodata");
+
+        // Aktueller Kurs: letzter Intraday-Punkt, sonst letzter Tagesschluss
+        var price = null;
+        if (Array.isArray(intraday) && intraday.length) {
+          price = intraday[intraday.length - 1][1];
+        }
+        // Vortages-Schlusskurs: letzter History-Eintrag vor dem heutigen Tag
+        var todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        var prev = null, lastClose = null;
+        for (var i = history.length - 1; i >= 0; i--) {
+          var ts = history[i][0], val = history[i][1];
+          if (lastClose === null) lastClose = val;
+          if (ts < todayStart.getTime()) { prev = val; break; }
+        }
+        if (price === null) price = lastClose;
+        if (prev === null) prev = lastClose;
+        if (!price || !prev) throw new Error("nodata");
+        return { symbol: isin, ok: true, price: price, pct: (price - prev) / prev * 100 };
+      })
+      .catch(function () {
+        return { symbol: isin, ok: false };
+      });
+  }
+
+  // ---- Yahoo Chart-Endpoint über Proxy, mit Fallback ----
+  function fetchQuoteYahoo(sym, proxyIndex) {
+    proxyIndex = proxyIndex || 0;
+    var yahooUrl = "https://query1.finance.yahoo.com/v8/finance/chart/" +
+                   encodeURIComponent(sym) + "?interval=1d&range=1d";
+    if (proxyIndex >= PROXIES.length) {
+      return Promise.resolve({ symbol: sym, ok: false });
+    }
+    return fetch(PROXIES[proxyIndex](yahooUrl))
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var meta = data && data.chart && data.chart.result &&
+                   data.chart.result[0] && data.chart.result[0].meta;
+        var price = meta && meta.regularMarketPrice;
+        var prev = meta && (meta.chartPreviousClose || meta.previousClose);
+        if (price && prev) {
+          return { symbol: sym, ok: true, price: price, pct: (price - prev) / prev * 100 };
+        }
+        throw new Error("nodata");
+      })
+      .catch(function () {
+        return fetchQuoteYahoo(sym, proxyIndex + 1); // nächsten Proxy versuchen
+      });
+  }
+
+  var loading = false;
+  function refresh() {
+    if (loading) return;
+    loading = true;
+    errorEl.style.display = "none";
+    refreshBtn.classList.add("spinning");
+
+    var symbols = getSymbols();
+    Promise.all(symbols.map(function (s) { return fetchQuote(s); }))
+      .then(function (results) {
+        renderQuotes(results);
+        var now = new Date();
+        statusEl.textContent = "Stand: " +
+          now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      })
+      .finally(function () {
+        loading = false;
+        refreshBtn.classList.remove("spinning");
+      });
+  }
+
+  // ---- Symbole verwalten ----
+  function renderSymList() {
+    var list = document.getElementById("symList");
+    list.innerHTML = "";
+    getSymbols().forEach(function (sym, i) {
+      var row = document.createElement("div");
+      row.className = "sym-row";
+      var span = document.createElement("span");
+      span.textContent = sym;
+      var del = document.createElement("button");
+      del.textContent = "Entfernen";
+      del.addEventListener("click", function () {
+        var arr = getSymbols();
+        arr.splice(i, 1);
+        setSymbols(arr);
+        renderSymList();
+      });
+      row.appendChild(span);
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById("editBtn").addEventListener("click", function () {
+    renderSymList();
+    editSheet.classList.add("open");
+  });
+  document.getElementById("addSymBtn").addEventListener("click", function () {
+    var input = document.getElementById("newSymInput");
+    var s = input.value.trim().toUpperCase();
+    if (!s) return;
+    var arr = getSymbols();
+    if (arr.indexOf(s) === -1) { arr.push(s); setSymbols(arr); }
+    input.value = "";
+    renderSymList();
+  });
+  document.getElementById("doneBtn").addEventListener("click", function () {
+    editSheet.classList.remove("open");
+    renderPending();
+    refresh();
+  });
+
+  refreshBtn.addEventListener("click", refresh);
+
+  // Auto-Refresh alle 60 s, nur wenn App sichtbar
+  setInterval(function () {
+    if (document.visibilityState === "visible") refresh();
+  }, 60000);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") refresh();
+  });
+
+  // Start
+  renderPending();
+  refresh();
+})();
+</script>
+</body>
+</html>
