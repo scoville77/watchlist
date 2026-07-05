@@ -152,6 +152,19 @@
     width: 52px; border-radius: 12px; border: none; background: var(--accent);
     color: #fff; font-size: 22px; font-weight: 700; cursor: pointer;
   }
+  #suggestList { margin-bottom: 10px; }
+  .suggest-row {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 11px 6px; border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .suggest-row:active { background: rgba(61,139,253,0.12); }
+  .suggest-row .s-sym { font-weight: 800; font-size: 14px; white-space: nowrap; }
+  .suggest-row .s-name {
+    color: var(--muted); font-size: 13px; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .suggest-row .s-exch { color: var(--muted); font-size: 11px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -181,9 +194,10 @@
   <h2>Symbole</h2>
   <p>Deutsche Aktien mit Endung .DE (z.&nbsp;B. SAP.DE), US-Aktien als AAPL usw. Wikifolios und Zertifikate direkt als ISIN eintragen (z.&nbsp;B. DE000LS9UTF2) – die laufen über Lang &amp; Schwarz.</p>
   <div class="add-row">
-    <input class="field" id="newSymInput" placeholder="z. B. SAP.DE" autocapitalize="characters" autocorrect="off">
+    <input class="field" id="newSymInput" placeholder="Name, Ticker oder ISIN" autocapitalize="characters" autocorrect="off">
     <button class="add-btn" id="addSymBtn">+</button>
   </div>
+  <div id="suggestList"></div>
   <div id="symList"></div>
   <button class="btn" id="doneBtn">Fertig</button>
 </div>
@@ -604,12 +618,78 @@
     var input = document.getElementById("newSymInput");
     var s = input.value.trim().toUpperCase();
     if (!s) return false;
-    var arr = getSymbols();
-    if (arr.indexOf(s) === -1) { arr.push(s); setSymbols(arr); }
+    addSymbol(s);
     input.value = "";
-    renderSymList();
+    clearSuggestions();
     return true;
   }
+
+  function addSymbol(s) {
+    var arr = getSymbols();
+    if (arr.indexOf(s) === -1) { arr.push(s); setSymbols(arr); }
+    renderSymList();
+  }
+
+  // ---- Live-Vorschläge beim Tippen (Yahoo-Suche, findet Namen und Ticker) ----
+  var suggestList = document.getElementById("suggestList");
+  var suggestTimer = null;
+  var suggestSeq = 0;
+
+  function clearSuggestions() { suggestList.innerHTML = ""; }
+
+  function renderSuggestions(items) {
+    clearSuggestions();
+    items.forEach(function (it) {
+      var row = document.createElement("div");
+      row.className = "suggest-row";
+      var sym = document.createElement("span");
+      sym.className = "s-sym";
+      sym.textContent = it.symbol;
+      var name = document.createElement("span");
+      name.className = "s-name";
+      name.textContent = it.name || "";
+      var exch = document.createElement("span");
+      exch.className = "s-exch";
+      exch.textContent = it.exch || "";
+      row.appendChild(sym); row.appendChild(name); row.appendChild(exch);
+      row.addEventListener("click", function () {
+        addSymbol(it.symbol);
+        document.getElementById("newSymInput").value = "";
+        clearSuggestions();
+      });
+      suggestList.appendChild(row);
+    });
+  }
+
+  function fetchSuggestions(query) {
+    var seq = ++suggestSeq;
+    var url = "https://query1.finance.yahoo.com/v1/finance/search?q=" +
+              encodeURIComponent(query) + "&quotesCount=6&newsCount=0&listsCount=0";
+    proxiedJson(url).then(function (data) {
+      if (seq !== suggestSeq) return; // veraltete Antwort verwerfen
+      var quotes = (data && data.quotes) || [];
+      var items = quotes.filter(function (q) {
+        return q.symbol && (q.quoteType === "EQUITY" || q.quoteType === "ETF" ||
+                            q.quoteType === "MUTUALFUND" || q.quoteType === "INDEX");
+      }).map(function (q) {
+        return {
+          symbol: q.symbol,
+          name: q.shortname || q.longname || "",
+          exch: q.exchDisp || q.exchange || ""
+        };
+      });
+      renderSuggestions(items);
+    }).catch(function () {
+      if (seq === suggestSeq) clearSuggestions();
+    });
+  }
+
+  document.getElementById("newSymInput").addEventListener("input", function () {
+    var q = this.value.trim();
+    if (suggestTimer) clearTimeout(suggestTimer);
+    if (q.length < 2 || isIsin(q.toUpperCase())) { clearSuggestions(); return; }
+    suggestTimer = setTimeout(function () { fetchSuggestions(q); }, 350);
+  });
 
   document.getElementById("addSymBtn").addEventListener("click", addSymbolFromInput);
   // Enter/„Return" auf der Tastatur fügt ebenfalls hinzu
