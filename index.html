@@ -324,7 +324,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v26";
+  var VERSION = "v27";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1001,11 +1001,15 @@
             '<div class="s">' + p.stueck + ' Stk \u00b7 \u00d8 ' + fmtEur(p.kaufkurs) + '</div></div>' +
             '<div class="r"><div class="net" style="color:var(--muted)">\u2026</div><div class="sub">kein Kurs</div></div></div>';
         } else {
+          // p.a. erst ab 180 Tagen Haltedauer - sonst hochgerechnete Fantasiezahlen
+          var paTeil = r.tage >= 180 ? ' \u00b7 ' + fmtPct(r.pa) + ' p.a.' : '';
+          var seit = new Date(p.kaufdatum).toLocaleDateString("de-DE",
+            { day: "2-digit", month: "2-digit", year: "2-digit" });
           html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
             '<div class="s">' + p.stueck + ' Stk \u00b7 \u00d8 ' + fmtEur(p.kaufkurs) +
-            ' \u2192 ' + fmtEur(r.kurs) + '</div></div>' +
+            ' \u2192 ' + fmtEur(r.kurs) + ' \u00b7 seit ' + seit + '</div></div>' +
             '<div class="r"><div class="net ' + signCls(r.netto) + '">' + fmtEur(r.netto) + ' \u20ac</div>' +
-            '<div class="sub">' + fmtPct(r.pctNetto) + ' \u00b7 ' + fmtPct(r.pa) + ' p.a. \u00b7 KESt ' + fmtEur(-r.kest) + '</div></div></div>';
+            '<div class="sub">' + fmtPct(r.pctNetto) + paTeil + ' \u00b7 KESt ' + fmtEur(-r.kest) + '</div></div></div>';
         }
       });
     });
