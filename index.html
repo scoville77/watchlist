@@ -248,7 +248,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v17";
+  var VERSION = "v18";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -349,26 +349,10 @@
   // Letzte Kursdaten je Symbol (für das Detail-Panel)
   var lastQuotes = {};
 
-  // Langdruck-Erkennung (550 ms, bricht bei Bewegung ab)
+  // Antippen einer Kachel öffnet die Detailansicht
   function attachLongPress(el, sym) {
-    var timer = null, startX = 0, startY = 0, fired = false;
-    function clear() { if (timer) { clearTimeout(timer); timer = null; } }
-    el.addEventListener("pointerdown", function (e) {
-      fired = false; startX = e.clientX; startY = e.clientY;
-      clear();
-      timer = setTimeout(function () {
-        fired = true;
-        openDetails(sym);
-      }, 550);
-    });
-    el.addEventListener("pointermove", function (e) {
-      if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) clear();
-    });
-    el.addEventListener("pointerup", clear);
-    el.addEventListener("pointercancel", clear);
+    el.addEventListener("click", function () { openDetails(sym); });
     el.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-    // fired-Flag verhindert versehentliche Klick-Aktionen nach Langdruck
-    el.addEventListener("click", function (e) { if (fired) { e.stopPropagation(); e.preventDefault(); } }, true);
   }
 
   function appendPlusTile() {
