@@ -258,7 +258,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v19";
+  var VERSION = "v20";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -444,10 +444,13 @@
     document.getElementById("detailPct").textContent =
       q && q.ok ? (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2) + " % zum Vortagesschluss" : "keine Daten";
     document.getElementById("detailExchange").textContent = (q && q.exchange) || (isIsin(sym) ? "Lang & Schwarz" : "Yahoo Finance");
-    document.getElementById("detailTime").textContent =
-      q && q.time ? new Date(q.time).toLocaleString("de-DE", {
-        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
-      }) + " Uhr" : "–";
+    document.getElementById("detailTime").textContent = (function () {
+      if (!q || !q.time) return "–";
+      var opts = { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" };
+      // L&S kodiert deutsche Ortszeit als UTC - dann ohne Umrechnung anzeigen
+      if (q.timeIsLocalWallClock) opts.timeZone = "UTC";
+      return new Date(q.time).toLocaleString("de-DE", opts) + " Uhr";
+    })();
     document.getElementById("detailCurrency").textContent = (q && q.currency) || "–";
     detailBackdrop.classList.add("open");
     detailSheetEl.classList.add("open");
@@ -523,8 +526,10 @@
 
         // Broker-Logik: Wochenendkurse (L&S taxt teils Sa/So) werden ignoriert.
         // Basis ist immer der letzte volle Werktags-Handelstag.
+        // Wichtig: L&S-Zeitstempel sind deutsche Ortszeit, als UTC kodiert -
+        // deshalb hier durchgehend UTC-Methoden verwenden.
         function isWeekday(ts) {
-          var d = new Date(ts).getDay();
+          var d = new Date(ts).getUTCDay();
           return d >= 1 && d <= 5;
         }
         var histWD = history.filter(function (p) { return isWeekday(p[0]); });
@@ -544,7 +549,7 @@
         }
         // Vergleichsbasis: Werktags-Schlusskurs vor dem Tag des aktuellen Kurses
         var refDay = new Date(priceTs);
-        refDay.setHours(0, 0, 0, 0);
+        refDay.setUTCHours(0, 0, 0, 0);
         var prev = null;
         for (var i = histWD.length - 1; i >= 0; i--) {
           if (histWD[i][0] < refDay.getTime()) { prev = histWD[i][1]; break; }
@@ -556,7 +561,8 @@
           name: lsInfo && lsInfo.name ? lsInfo.name : isin,
           exchange: "Lang & Schwarz",
           currency: "EUR",
-          time: priceTs
+          time: priceTs,
+          timeIsLocalWallClock: true
         };
       })
       .catch(function () {
