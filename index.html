@@ -129,6 +129,46 @@
   .btn.secondary { background: var(--panel); border: 1px solid var(--line); color: var(--text); margin-top: 14px; }
 
   #status { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
+
+  /* ---- Depot-Seite ---- */
+  .dep-summary {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 16px; padding: 18px 16px; margin-bottom: 14px;
+    text-align: center;
+  }
+  .dep-summary .big {
+    font-size: 34px; font-weight: 900; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .dep-summary .cap { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .dep-summary .rows { margin-top: 14px; }
+  .dep-srow {
+    display: flex; justify-content: space-between; font-size: 13px;
+    padding: 7px 0; border-top: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+  }
+  .dep-srow .k { color: var(--muted); }
+  .dep-group { color: var(--muted); font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin: 18px 4px 8px; display: flex; justify-content: space-between; }
+  .dep-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px 14px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  }
+  .dep-card .l { min-width: 0; }
+  .dep-card .t { font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dep-card .s { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+  .dep-card .r { text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+  .dep-card .net { font-size: 17px; font-weight: 900; }
+  .dep-card .sub { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .pos { color: #35d073; }
+  .neg { color: #ff6b5e; }
+  #depotImport textarea {
+    width: 100%; min-height: 130px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    font-size: 13px; padding: 12px; font-family: monospace;
+  }
   #error { text-align: center; color: #ff8a80; font-size: 13px; padding: 8px 0; display: none; }
 
   /* Pull-to-Refresh-Indikator */
@@ -208,6 +248,11 @@
 <header>
   <h1>Watchlist</h1>
   <div class="header-btns">
+    <button class="icon-btn" id="pageBtn" aria-label="Depot-Ansicht">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M2 13h20"/>
+      </svg>
+    </button>
     <button class="icon-btn" id="refreshBtn" aria-label="Aktualisieren">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
         <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
@@ -230,6 +275,19 @@
 <div id="error"></div>
 <div id="grid"></div>
 <div id="status"></div>
+
+<!-- Seite 2: Depot (fiktiver Verkauf) -->
+<div id="depotPage" style="display:none">
+  <div id="depotContent"></div>
+  <div id="depotImport" style="display:none">
+    <p style="color:var(--muted);font-size:13px;line-height:1.5;margin:6px 2px 10px">
+      Depot-Daten einfügen (bleiben nur auf diesem Gerät gespeichert):
+    </p>
+    <textarea id="importArea" placeholder='{"kest":0.275,"positionen":[...]}'></textarea>
+    <button class="btn" id="importBtn" style="margin-top:10px">Importieren</button>
+  </div>
+  <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
+</div>
 
 <!-- Symbole verwalten -->
 <div class="sheet" id="editSheet">
@@ -266,7 +324,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v25";
+  var VERSION = "v26";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -650,12 +708,19 @@
     refreshBtn.classList.add("spinning");
     statusEl.textContent = "Aktualisiere…";
 
-    var symbols = getSymbols();
-    Promise.all(symbols.map(function (s) { return fetchQuote(s); }))
+    var wl = getSymbols();
+    var all = getAllSymbols();
+    Promise.all(all.map(function (s) { return fetchQuote(s); }))
       .then(function (results) {
+        // Nur-Depot-Werte im Kursspeicher ablegen, aber nicht als Kachel zeigen
+        results.forEach(function (q) {
+          if (wl.indexOf(q.symbol) === -1) lastQuotes[q.symbol] = q;
+        });
+        results = results.filter(function (q) { return wl.indexOf(q.symbol) !== -1; });
         results.sort(sortQuotes);
         try {
           renderQuotes(results);
+          if (depotOpen) renderDepot();
         } catch (e) {
           errorEl.textContent = "Anzeigefehler: " + e.message;
           errorEl.style.display = "block";
@@ -802,16 +867,19 @@
   function tickOne() {
     if (loading || document.visibilityState !== "visible") return;
     if (editSheet.classList.contains("open")) return;
-    var symbols = getSymbols();
+    var symbols = getAllSymbols();
     if (!symbols.length) return;
     tickIndex = tickIndex % symbols.length;
     var sym = symbols[tickIndex++];
     fetchQuote(sym).then(function (q) {
-      var results = getSymbols().map(function (s) {
+      var wl = getSymbols();
+      if (wl.indexOf(sym) === -1) lastQuotes[sym] = q;
+      var results = wl.map(function (s) {
         return s === sym ? q : (lastQuotes[s] || { symbol: s, ok: false });
       });
       results.sort(sortQuotes);
       renderQuotes(results);
+      if (depotOpen) renderDepot();
       statusEl.textContent = "Stand: " +
         new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
         " · " + VERSION;
@@ -820,6 +888,160 @@
   setInterval(tickOne, 6000);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") refresh();
+  });
+
+  // ---- Seite 2: Depot (fiktiver Verkauf) ----
+  var depotOpen = false;
+  var depotPage = document.getElementById("depotPage");
+  var depotContent = document.getElementById("depotContent");
+  var depotImport = document.getElementById("depotImport");
+  var editDataBtn = document.getElementById("editDataBtn");
+
+  function fmtEur(x) {
+    return x.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtPct(x) {
+    return (x >= 0 ? "+" : "") + (x * 100).toLocaleString("de-DE",
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+  }
+  function signCls(x) { return x >= 0 ? "pos" : "neg"; }
+
+  function getDepotData() {
+    try {
+      var d = JSON.parse(storeGet("depotData") || "null");
+      return d && Array.isArray(d.positionen) && d.positionen.length ? d : null;
+    } catch (e) { return null; }
+  }
+
+  // Alle Symbole, die Kurse brauchen: Watchlist + Depot
+  function getAllSymbols() {
+    var wl = getSymbols();
+    var d = getDepotData();
+    if (d) d.positionen.forEach(function (p) {
+      if (p.symbol && wl.indexOf(p.symbol) === -1) wl = wl.concat([p.symbol]);
+    });
+    return wl;
+  }
+
+  // Rechenlogik je Position (Logik wie im Depot-Excel):
+  // Einstand = Stueck*Kaufkurs + Spesen; Erloes = Stueck*Kurs - Spesen (Spesen x2)
+  // KESt = Satz * Stueck * (Kurs - Kaufkurs), auch negativ (Verlustausgleich)
+  function computeDepot() {
+    var data = getDepotData();
+    if (!data) return null;
+    var kestSatz = data.kest || 0.275;
+    var rows = [], pending = 0;
+    var tot = { einstand: 0, erloes: 0, ergInkl: 0, kest: 0, netto: 0 };
+    data.positionen.forEach(function (p) {
+      var q = lastQuotes[p.symbol];
+      if (!q || !q.ok) { pending++; rows.push({ p: p, pending: true }); return; }
+      var kurs = q.price;
+      var einstand = p.stueck * p.kaufkurs + p.spesen;
+      var erloes = p.stueck * kurs - p.spesen;
+      var ergKurs = erloes - einstand;
+      var kest = kestSatz * p.stueck * (kurs - p.kaufkurs);
+      var ergInkl = ergKurs + (p.dividenden || 0);
+      var netto = ergInkl - kest;
+      var tage = Math.max(1, (Date.now() - new Date(p.kaufdatum).getTime()) / 86400000);
+      var pctNetto = netto / einstand;
+      rows.push({
+        p: p, kurs: kurs, einstand: einstand, erloes: erloes, kest: kest,
+        ergInkl: ergInkl, netto: netto, pctNetto: pctNetto,
+        pa: Math.pow(1 + pctNetto, 365 / tage) - 1, tage: tage
+      });
+      tot.einstand += einstand; tot.erloes += erloes;
+      tot.ergInkl += ergInkl; tot.kest += kest; tot.netto += netto;
+    });
+    return { rows: rows, tot: tot, pending: pending, kestSatz: kestSatz };
+  }
+
+  function renderDepot() {
+    var data = getDepotData();
+    if (!data) {
+      depotContent.innerHTML = "";
+      depotImport.style.display = "block";
+      editDataBtn.style.display = "none";
+      return;
+    }
+    depotImport.style.display = "none";
+    editDataBtn.style.display = "block";
+    var c = computeDepot();
+    var html = "";
+
+    // Gesamt-Karte
+    html += '<div class="dep-summary">' +
+      '<div class="cap">Netto-Ergebnis bei Verkauf jetzt (nach Spesen \u00d7 2, KESt ' +
+      (c.kestSatz * 100).toLocaleString("de-DE") + ' %, inkl. Dividenden)</div>' +
+      '<div class="big ' + signCls(c.tot.netto) + '">' + fmtEur(c.tot.netto) + ' \u20ac</div>' +
+      '<div class="rows">' +
+      '<div class="dep-srow"><span class="k">Verkaufserl\u00f6s (nach Spesen)</span><span>' + fmtEur(c.tot.erloes) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Einstand gesamt (inkl. Spesen)</span><span>' + fmtEur(c.tot.einstand) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Ergebnis inkl. Dividenden</span><span class="' + signCls(c.tot.ergInkl) + '">' + fmtEur(c.tot.ergInkl) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Vorauss. KESt</span><span>' + fmtEur(-c.tot.kest) + ' \u20ac</span></div>' +
+      (c.pending ? '<div class="dep-srow"><span class="k">Ohne Kurs (fehlt in Summe)</span><span>' + c.pending + '</span></div>' : '') +
+      '</div></div>';
+
+    // Gruppen nach Depot
+    var groups = {};
+    var order = [];
+    c.rows.forEach(function (r) {
+      var g = r.p.depot || "Depot";
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(r);
+    });
+    order.forEach(function (g) {
+      var rows = groups[g];
+      var sub = rows.reduce(function (s, r) { return s + (r.pending ? 0 : r.netto); }, 0);
+      html += '<div class="dep-group"><span>' + g + '</span><span class="' + signCls(sub) + '">' + fmtEur(sub) + ' \u20ac</span></div>';
+      rows.sort(function (a, b) { return (b.pending ? -1e18 : b.netto) - (a.pending ? -1e18 : a.netto); });
+      rows.forEach(function (r) {
+        var p = r.p;
+        if (r.pending) {
+          html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
+            '<div class="s">' + p.stueck + ' Stk \u00b7 \u00d8 ' + fmtEur(p.kaufkurs) + '</div></div>' +
+            '<div class="r"><div class="net" style="color:var(--muted)">\u2026</div><div class="sub">kein Kurs</div></div></div>';
+        } else {
+          html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
+            '<div class="s">' + p.stueck + ' Stk \u00b7 \u00d8 ' + fmtEur(p.kaufkurs) +
+            ' \u2192 ' + fmtEur(r.kurs) + '</div></div>' +
+            '<div class="r"><div class="net ' + signCls(r.netto) + '">' + fmtEur(r.netto) + ' \u20ac</div>' +
+            '<div class="sub">' + fmtPct(r.pctNetto) + ' \u00b7 ' + fmtPct(r.pa) + ' p.a. \u00b7 KESt ' + fmtEur(-r.kest) + '</div></div></div>';
+        }
+      });
+    });
+    depotContent.innerHTML = html;
+    // Titel sicher als Text setzen (kein HTML aus Daten)
+    var cards = depotContent.querySelectorAll(".dep-card .t");
+    var i = 0;
+    order.forEach(function (g) {
+      groups[g].forEach(function (r) { cards[i++].textContent = r.p.titel || r.p.symbol; });
+    });
+  }
+
+  // Seitenumschaltung
+  document.getElementById("pageBtn").addEventListener("click", function () {
+    depotOpen = !depotOpen;
+    depotPage.style.display = depotOpen ? "block" : "none";
+    grid.style.display = depotOpen ? "none" : "grid";
+    if (depotOpen) { renderDepot(); refresh(); }
+  });
+
+  // Import
+  document.getElementById("importBtn").addEventListener("click", function () {
+    try {
+      var d = JSON.parse(document.getElementById("importArea").value);
+      if (!d || !Array.isArray(d.positionen) || !d.positionen.length) throw new Error("leer");
+      storeSet("depotData", JSON.stringify(d));
+      document.getElementById("importArea").value = "";
+      renderDepot();
+      refresh();
+    } catch (e) {
+      alert("Konnte die Daten nicht lesen - bitte den Block exakt einf\u00fcgen.");
+    }
+  });
+  editDataBtn.addEventListener("click", function () {
+    depotImport.style.display = "block";
+    document.getElementById("importArea").value = storeGet("depotData") || "";
   });
 
   // ---- Pull-to-Refresh (Runterziehen am oberen Rand) ----
