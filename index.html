@@ -258,7 +258,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v20";
+  var VERSION = "v21";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -497,7 +497,7 @@
       try { return Promise.resolve(JSON.parse(cached)); } catch (e) {}
     }
     var url = "https://www.ls-tc.de/_rpc/json/.lstc/instrument/search/main?q=" +
-              encodeURIComponent(isin) + "&localeId=2";
+              encodeURIComponent(isin) + "&localeId=2&_cb=" + Date.now();
     return proxiedJson(url).then(function (arr) {
       var hit = Array.isArray(arr) && arr.length ? arr[0] : null;
       var id = hit && (hit.instrumentId || hit.id);
@@ -515,7 +515,7 @@
         lsInfo = info;
         var url = "https://www.ls-tc.de/_rpc/json/instrument/chart/dataForInstrument" +
                   "?container=chart1&instrumentId=" + info.id +
-                  "&marketId=1&quotetype=mid&series=intraday,history&type=&localeId=2";
+                  "&marketId=1&quotetype=mid&series=intraday,history&type=&localeId=2&_cb=" + Date.now();
         return proxiedJson(url);
       })
       .then(function (data) {
@@ -574,7 +574,7 @@
   function fetchQuoteYahoo(sym, proxyIndex) {
     proxyIndex = proxyIndex || 0;
     var yahooUrl = "https://query1.finance.yahoo.com/v8/finance/chart/" +
-                   encodeURIComponent(sym) + "?interval=1d&range=1d";
+                   encodeURIComponent(sym) + "?interval=1d&range=1d&_cb=" + Date.now();
     if (proxyIndex >= PROXIES.length) {
       return Promise.resolve({ symbol: sym, ok: false });
     }
