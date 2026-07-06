@@ -266,7 +266,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v24";
+  var VERSION = "v25";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -439,8 +439,8 @@
         d.style.color = textColor(q.pct);
         d.innerHTML =
           '<div class="sym"></div>' +
-          '<div class="pct">' + (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2) + '&nbsp;%</div>' +
-          '<div class="price">' + q.price.toFixed(2) + '</div>';
+          '<div class="pct">' + (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + '&nbsp;%</div>' +
+          '<div class="price">' + q.price.toFixed(2).replace(".", ",") + '</div>';
       } else {
         failures++;
         d.className = "tile pending";
@@ -468,9 +468,9 @@
     document.getElementById("detailName").textContent = (q && q.name) || labelFor(sym);
     document.getElementById("detailSymbol").textContent = sym;
     document.getElementById("detailPrice").textContent =
-      q && q.ok ? q.price.toFixed(2) + (q.currency ? " " + q.currency : "") : "–";
+      q && q.ok ? q.price.toFixed(2).replace(".", ",") + (q.currency ? " " + q.currency : "") : "–";
     document.getElementById("detailPct").textContent =
-      q && q.ok ? (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2) + " % zum Vortagesschluss" : "keine Daten";
+      q && q.ok ? (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + " % zum Vortagesschluss" : "keine Daten";
     document.getElementById("detailExchange").textContent = (q && q.exchange) || (isIsin(sym) ? "Lang & Schwarz" : "Yahoo Finance");
     document.getElementById("detailTime").textContent = (function () {
       if (!q || !q.time) return "–";
