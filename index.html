@@ -248,7 +248,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v16";
+  var VERSION = "v17";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -279,7 +279,6 @@
   function isIsin(s) {
     return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(s);
   }
-  var MAX_PCT = 3.0; // ab ±3 % dunkelste Farbe
 
   // Yahoo Finance erlaubt keine direkten Browser-Abrufe (CORS),
   // deshalb laufen die Anfragen über einen öffentlichen Proxy.
@@ -315,10 +314,19 @@
   }
   function setSymbols(arr) { storeSet("symbols_de", JSON.stringify(arr)); }
 
-  // ---- Farblogik: hell -> dunkel, linear interpoliert ----
+  // ---- Farblogik: nichtlineare Skala ----
+  // 0 bis 3 % nutzen ~80 % der Farbtiefe (feine Differenzierung im Alltag),
+  // darüber flacht die Kurve ab und erreicht bei ~8 % das Maximum.
+  var KNEE = 3.0, KNEE_T = 0.8, MAX_PCT = 8.0;
+  function colorIntensity(pct) {
+    var a = Math.abs(pct);
+    if (a <= KNEE) return (a / KNEE) * KNEE_T;
+    if (a >= MAX_PCT) return 1;
+    return KNEE_T + ((a - KNEE) / (MAX_PCT - KNEE)) * (1 - KNEE_T);
+  }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function tileColor(pct) {
-    var t = Math.min(Math.abs(pct) / MAX_PCT, 1);
+    var t = colorIntensity(pct);
     var light, dark;
     if (pct >= 0) { light = [199,237,199]; dark = [0,107,41]; }
     else          { light = [245,204,199]; dark = [140,13,13]; }
@@ -328,7 +336,7 @@
       Math.round(lerp(light[2], dark[2], t)) + ")";
   }
   function textColor(pct) {
-    return Math.abs(pct) > 1.2 ? "#ffffff" : "rgba(0,0,0,0.78)";
+    return colorIntensity(pct) > 0.32 ? "#ffffff" : "rgba(0,0,0,0.78)";
   }
 
   // ---- DOM ----
