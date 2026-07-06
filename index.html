@@ -145,6 +145,13 @@
     overflow-y: auto; display: none; z-index: 10;
   }
   .sheet.open { display: block; }
+  .sheet-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .sheet-head .back-btn {
+    width: 38px; height: 38px; border-radius: 12px; flex: none;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    font-size: 22px; line-height: 1; cursor: pointer;
+  }
+  .sheet-head h2 { margin: 0; }
   .sheet h2 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
   .sheet p { color: var(--muted); font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
   .field {
@@ -220,7 +227,10 @@
 
 <!-- Symbole verwalten -->
 <div class="sheet" id="editSheet">
-  <h2>Symbole</h2>
+  <div class="sheet-head">
+    <button class="back-btn" id="backBtn" aria-label="Zurück">‹</button>
+    <h2>Symbole</h2>
+  </div>
   <p>Deutsche Aktien mit Endung .DE (z.&nbsp;B. SAP.DE), US-Aktien als AAPL usw. Wikifolios und Zertifikate direkt als ISIN eintragen (z.&nbsp;B. DE000LS9UTF2) – die laufen über Lang &amp; Schwarz.</p>
   <div class="add-row">
     <input class="field" id="newSymInput" placeholder="Name, Ticker oder ISIN" autocapitalize="characters" autocorrect="off">
@@ -248,7 +258,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v18";
+  var VERSION = "v19";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -736,13 +746,15 @@
   document.getElementById("newSymInput").addEventListener("keydown", function (e) {
     if (e.key === "Enter") { e.preventDefault(); addSymbolFromInput(); }
   });
-  document.getElementById("doneBtn").addEventListener("click", function () {
+  function closeEditor() {
     // Falls noch Text im Feld steht: automatisch übernehmen statt verwerfen
     addSymbolFromInput();
     editSheet.classList.remove("open");
     renderPending();
     refresh();
-  });
+  }
+  document.getElementById("doneBtn").addEventListener("click", closeEditor);
+  document.getElementById("backBtn").addEventListener("click", closeEditor);
 
   refreshBtn.addEventListener("click", refresh);
 
