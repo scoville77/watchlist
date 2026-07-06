@@ -121,6 +121,7 @@
   .detail-row .k { color: var(--muted); }
   .detail-row .v { font-weight: 600; text-align: right; }
   .btn.danger { background: #b3261e; }
+  .btn.secondary { background: var(--panel); border: 1px solid var(--line); color: var(--text); margin-top: 14px; }
 
   #status { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
   #error { text-align: center; color: #ff8a80; font-size: 13px; padding: 8px 0; display: none; }
@@ -251,6 +252,8 @@
   <div class="detail-row"><span class="k">Börse / Quelle</span><span class="v" id="detailExchange">–</span></div>
   <div class="detail-row"><span class="k">Kurszeit</span><span class="v" id="detailTime">–</span></div>
   <div class="detail-row"><span class="k">Währung</span><span class="v" id="detailCurrency">–</span></div>
+  <input class="field" id="renameInput" placeholder="Kachelname" autocorrect="off" style="margin-top:14px">
+  <button class="btn secondary" id="renameBtn">Namen speichern</button>
   <button class="btn danger" id="detailDeleteBtn">Aus Watchlist entfernen</button>
 </div>
 
@@ -258,7 +261,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v21";
+  var VERSION = "v22";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -266,24 +269,36 @@
     return (MARKED.indexOf(sym) !== -1 ? "★ " : "") + labelFor(sym);
   }
 
-  var DEFAULT_SYMBOLS = ["SLVR.DE","RDC.DE","ADN1.DE","U6Z.DE","IUSN.DE","VWCE.DE","18MF.DE","VVSM.DE","DE000LS9UTF2","DE000LS9UK98"];
-
-  // Kurznamen für die Kacheln (optional, sonst wird das Symbol angezeigt)
+  // Standard-Kurznamen für die Kacheln
   var LABELS = {
-    "SLVR.DE": "SILBER MIN.",
+    "SLVR.DE": "SILBERMINEN",
     "RDC.DE": "REDCARE",
     "ADN1.DE": "ADESSO",
-    "U6Z.DE": "URAN. EN.",
-    "IUSN.DE": "WORLD SC",
+    "U6Z.DE": "URANIUM",
+    "IUSN.DE": "SMALL CAP",
     "VWCE.DE": "ALL-WORLD",
     "18MF.DE": "USA 2X LEV",
-    "VVSM.DE": "SEMICOND.",
-    "DE000LS9UTF2": "WF GLOBAL W.",
+    "VVSM.DE": "HALBLEITER",
+    "DE000LS9UTF2": "WF GLOBAL",
     "DE000LS9UK98": "WF SZEW"
   };
-  function labelFor(sym) {
-    return LABELS[sym] || sym.replace(/\.DE$/i, "");
+
+  // Vom Nutzer vergebene Namen (überschreiben die Standards)
+  function getCustomLabels() {
+    try { return JSON.parse(storeGet("customLabels") || "{}"); }
+    catch (e) { return {}; }
   }
+  function setCustomLabel(sym, name) {
+    var m = getCustomLabels();
+    if (name) m[sym] = name; else delete m[sym];
+    storeSet("customLabels", JSON.stringify(m));
+  }
+  function labelFor(sym) {
+    var custom = getCustomLabels()[sym];
+    return custom || LABELS[sym] || sym.replace(/\.DE$/i, "");
+  }
+
+  var DEFAULT_SYMBOLS = ["SLVR.DE","RDC.DE","ADN1.DE","U6Z.DE","IUSN.DE","VWCE.DE","18MF.DE","VVSM.DE","DE000LS9UTF2","DE000LS9UK98"];
 
   // ISIN-Erkennung: Werte wie DE000LS9UTF2 laufen über Lang & Schwarz statt Yahoo
   function isIsin(s) {
@@ -452,6 +467,7 @@
       return new Date(q.time).toLocaleString("de-DE", opts) + " Uhr";
     })();
     document.getElementById("detailCurrency").textContent = (q && q.currency) || "–";
+    document.getElementById("renameInput").value = labelFor(sym);
     detailBackdrop.classList.add("open");
     detailSheetEl.classList.add("open");
   }
@@ -463,6 +479,15 @@
   }
 
   detailBackdrop.addEventListener("click", closeDetails);
+  document.getElementById("renameBtn").addEventListener("click", function () {
+    if (!detailSymbolCurrent) return;
+    var name = document.getElementById("renameInput").value.trim();
+    // Leeres Feld = zurück zum Standardnamen
+    setCustomLabel(detailSymbolCurrent, name);
+    closeDetails();
+    renderPending();
+    refresh();
+  });
   document.getElementById("detailDeleteBtn").addEventListener("click", function () {
     if (!detailSymbolCurrent) return;
     var arr = getSymbols().filter(function (s) { return s !== detailSymbolCurrent; });
