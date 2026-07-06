@@ -266,7 +266,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v23";
+  var VERSION = "v24";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -378,6 +378,14 @@
 
   // Letzte Kursdaten je Symbol (für das Detail-Panel)
   var lastQuotes = {};
+
+  // Sortierung: beste Performance links oben, Werte ohne Daten ans Ende
+  function sortQuotes(a, b) {
+    if (a.ok && !b.ok) return -1;
+    if (!a.ok && b.ok) return 1;
+    if (!a.ok && !b.ok) return 0;
+    return b.pct - a.pct;
+  }
 
   // Antippen einer Kachel öffnet die Detailansicht
   function attachLongPress(el, sym) {
@@ -645,14 +653,7 @@
     var symbols = getSymbols();
     Promise.all(symbols.map(function (s) { return fetchQuote(s); }))
       .then(function (results) {
-        // Dynamische Reihenfolge: beste Performance links oben,
-        // Werte ohne Daten ans Ende
-        results.sort(function (a, b) {
-          if (a.ok && !b.ok) return -1;
-          if (!a.ok && b.ok) return 1;
-          if (!a.ok && !b.ok) return 0;
-          return b.pct - a.pct;
-        });
+        results.sort(sortQuotes);
         try {
           renderQuotes(results);
         } catch (e) {
@@ -794,10 +795,29 @@
 
   refreshBtn.addEventListener("click", refresh);
 
-  // Auto-Refresh alle 60 s, nur wenn App sichtbar
-  setInterval(function () {
-    if (document.visibilityState === "visible") refresh();
-  }, 60000);
+  // Einzel-Ticker: alle 6 s wird ein Wert reihum aktualisiert.
+  // Jeder Wert bleibt so ~minütlich frisch, aber die Updates
+  // kommen einzeln an - es blinkt nur, was sich wirklich bewegt.
+  var tickIndex = 0;
+  function tickOne() {
+    if (loading || document.visibilityState !== "visible") return;
+    if (editSheet.classList.contains("open")) return;
+    var symbols = getSymbols();
+    if (!symbols.length) return;
+    tickIndex = tickIndex % symbols.length;
+    var sym = symbols[tickIndex++];
+    fetchQuote(sym).then(function (q) {
+      var results = getSymbols().map(function (s) {
+        return s === sym ? q : (lastQuotes[s] || { symbol: s, ok: false });
+      });
+      results.sort(sortQuotes);
+      renderQuotes(results);
+      statusEl.textContent = "Stand: " +
+        new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
+        " · " + VERSION;
+    });
+  }
+  setInterval(tickOne, 6000);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") refresh();
   });
