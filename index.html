@@ -64,6 +64,13 @@
   .tile .pct { font-size: 19px; font-weight: 900; letter-spacing: -0.02em; }
   .tile .price { font-size: 11px; opacity: 0.85; }
   .tile.pending { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  .tile .ah {
+    font-size: 10.5px; font-weight: 800; margin-top: 3px;
+    background: rgba(0,0,0,0.4); border-radius: 8px; padding: 2px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .ah.up { color: #7dffab; }
+  .tile .ah.down { color: #ffb3a8; }
   .tile {
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none;
@@ -313,6 +320,7 @@
   <div class="detail-row"><span class="k">Kurs</span><span class="v" id="detailPrice">–</span></div>
   <div class="detail-row"><span class="k">Veränderung</span><span class="v" id="detailPct">–</span></div>
   <div class="detail-row"><span class="k">Börse / Quelle</span><span class="v" id="detailExchange">–</span></div>
+  <div class="detail-row" id="detailAhRow" style="display:none"><span class="k">Nachbörslich (L&amp;S)</span><span class="v" id="detailAh">–</span></div>
   <div class="detail-row"><span class="k">Kurszeit</span><span class="v" id="detailTime">–</span></div>
   <div class="detail-row"><span class="k">Währung</span><span class="v" id="detailCurrency">–</span></div>
   <input class="field" id="renameInput" placeholder="Kachelname" autocorrect="off" style="margin-top:14px">
@@ -324,7 +332,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v27";
+  var VERSION = "v28";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -495,10 +503,15 @@
         }
         d.style.background = tileColor(q.pct);
         d.style.color = textColor(q.pct);
+        var ahHtml = "";
+        if (q.ahPct != null && Math.abs(q.ahPct) >= 0.0005) {
+          ahHtml = '<div class="ah ' + (q.ahPct >= 0 ? "up" : "down") + '">nachb. ' +
+            (q.ahPct >= 0 ? "+" : "") + (q.ahPct * 100).toFixed(2).replace(".", ",") + ' %</div>';
+        }
         d.innerHTML =
           '<div class="sym"></div>' +
           '<div class="pct">' + (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + '&nbsp;%</div>' +
-          '<div class="price">' + q.price.toFixed(2).replace(".", ",") + '</div>';
+          '<div class="price">' + q.price.toFixed(2).replace(".", ",") + '</div>' + ahHtml;
       } else {
         failures++;
         d.className = "tile pending";
@@ -538,6 +551,15 @@
       return new Date(q.time).toLocaleString("de-DE", opts) + " Uhr";
     })();
     document.getElementById("detailCurrency").textContent = (q && q.currency) || "–";
+    var ahRow = document.getElementById("detailAhRow");
+    if (q && q.ahPct != null) {
+      ahRow.style.display = "flex";
+      document.getElementById("detailAh").textContent =
+        q.ahPrice.toFixed(2).replace(".", ",") + " (" + (q.ahPct >= 0 ? "+" : "") +
+        (q.ahPct * 100).toFixed(2).replace(".", ",") + " %)";
+    } else {
+      ahRow.style.display = "none";
+    }
     document.getElementById("renameInput").value = labelFor(sym);
     detailBackdrop.classList.add("open");
     detailSheetEl.classList.add("open");
@@ -568,9 +590,41 @@
     refresh();
   });
 
+  // ---- Nachbörslich: nach XETRA-Schluss zusätzlich L&S-Echtzeitkurs holen ----
+  // ISINs der Börsenwerte für die L&S-Abfrage
+  var AH_ISIN = {
+    "SLVR.DE": "IE000UL6CLP7",
+    "RDC.DE": "NL0012044747",
+    "ADN1.DE": "DE000A0Z23Q5",
+    "U6Z.DE": "US9168961038",
+    "IUSN.DE": "IE00BF4RFH31",
+    "VWCE.DE": "IE00BK5BQT80",
+    "VVSM.DE": "IE00BMC38736",
+    "18MF.DE": "FR0010755611"
+  };
+  function inAfterHours() {
+    var d = new Date();
+    var day = d.getDay();
+    if (day < 1 || day > 5) return false;
+    var m = d.getHours() * 60 + d.getMinutes();
+    return m >= 17 * 60 + 35 && m <= 23 * 60 + 10;
+  }
+
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
   function fetchQuote(sym) {
-    return isIsin(sym) ? fetchQuoteLS(sym) : fetchQuoteYahoo(sym);
+    if (isIsin(sym)) return fetchQuoteLS(sym);
+    var y = fetchQuoteYahoo(sym);
+    if (inAfterHours() && AH_ISIN[sym]) {
+      return Promise.all([y, fetchQuoteLS(AH_ISIN[sym])]).then(function (r) {
+        var q = r[0], ls = r[1];
+        if (q.ok && ls.ok && q.price) {
+          q.ahPct = (ls.price - q.price) / q.price;
+          q.ahPrice = ls.price;
+        }
+        return q;
+      });
+    }
+    return y;
   }
 
   // ---- Lang & Schwarz (inoffiziell), z. B. für Wikifolio-Zertifikate ----
