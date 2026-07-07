@@ -33,14 +33,14 @@
   header { flex: none; }
   #pager {
     flex: 1 1 auto; min-height: 0;
-    display: flex; width: calc(200% + 48px); gap: 48px;
+    display: flex; width: calc(300% + 96px); gap: 48px;
     touch-action: pan-y;
     transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1);
     will-change: transform;
   }
   #pager.dragging { transition: none; }
   #pager .page {
-    width: calc((100% - 48px) / 2); flex: none; min-width: 0;
+    width: calc((100% - 96px) / 3); flex: none; min-width: 0;
     overflow-y: auto; overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 24px;
@@ -153,7 +153,7 @@
   .btn.danger { background: #b3261e; }
   .btn.secondary { background: var(--panel); border: 1px solid var(--line); color: var(--text); margin-top: 14px; }
 
-  #status, #status2 { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
+  #status, #status2, #status3 { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
 
   /* ---- Depot-Seite ---- */
   .dep-summary {
@@ -316,6 +316,11 @@
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
   <div id="status2"></div>
 </div>
+<!-- Seite 3: Tagesgewinn (live vs. Schlusskurs Vortag) -->
+<div class="page" id="dayPage">
+  <div id="dayContent"></div>
+  <div id="status3"></div>
+</div>
 </div>
 
 <!-- Symbole verwalten -->
@@ -354,7 +359,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v31";
+  var VERSION = "v32";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -461,7 +466,8 @@
   var grid = document.getElementById("grid");
   var statusEl = document.getElementById("status");
   var status2El = document.getElementById("status2");
-  function setStatus(t) { statusEl.textContent = t; status2El.textContent = t; }
+  var status3El = document.getElementById("status3");
+  function setStatus(t) { statusEl.textContent = t; status2El.textContent = t; status3El.textContent = t; }
   var errorEl = document.getElementById("error");
   var refreshBtn = document.getElementById("refreshBtn");
   var editSheet = document.getElementById("editSheet");
@@ -798,7 +804,7 @@
         results.sort(sortQuotes);
         try {
           renderQuotes(results);
-          if (depotOpen) renderDepot();
+          renderActivePage();
         } catch (e) {
           errorEl.textContent = "Anzeigefehler: " + e.message;
           errorEl.style.display = "block";
@@ -957,7 +963,7 @@
       });
       results.sort(sortQuotes);
       renderQuotes(results);
-      if (depotOpen) renderDepot();
+      renderActivePage();
       setStatus("Stand: " +
         new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
         " · " + VERSION);
@@ -969,7 +975,12 @@
   });
 
   // ---- Seite 2: Depot (fiktiver Verkauf) ----
-  var depotOpen = false;
+  var pageIndex = 0; // 0 = Watchlist, 1 = Depot, 2 = Tagesgewinn
+  var depotOpen = false; // true, wenn Depot-Seite aktiv (fuer bestehende Logik)
+  function renderActivePage() {
+    if (pageIndex === 1) renderDepot();
+    else if (pageIndex === 2) renderDay();
+  }
   var depotPage = document.getElementById("depotPage");
   var depotContent = document.getElementById("depotContent");
   var depotImport = document.getElementById("depotImport");
@@ -1100,22 +1111,88 @@
     });
   }
 
+  // ---- Seite 3: Tagesgewinn (live vs. Schlusskurs Vortag) ----
+  var dayContent = document.getElementById("dayContent");
+  function renderDay() {
+    var data = getDepotData();
+    if (!data) {
+      dayContent.innerHTML = '<p style="color:var(--muted);font-size:14px;line-height:1.5;margin:10px 2px">' +
+        'F\u00fcr die Tagesansicht bitte zuerst auf der Depot-Seite die Daten importieren.</p>';
+      return;
+    }
+    var rows = [], pending = 0;
+    var tot = { gain: 0, now: 0, prev: 0 };
+    data.positionen.forEach(function (p) {
+      var q = lastQuotes[p.symbol];
+      if (!q || !q.ok) { pending++; rows.push({ p: p, pending: true }); return; }
+      var prev = q.price / (1 + q.pct / 100);
+      var gain = p.stueck * (q.price - prev);
+      rows.push({ p: p, kurs: q.price, prev: prev, gain: gain, pct: q.pct });
+      tot.gain += gain; tot.now += p.stueck * q.price; tot.prev += p.stueck * prev;
+    });
+    var totPct = tot.prev ? (tot.now / tot.prev - 1) : 0;
+
+    var html = '<div class="dep-summary">' +
+      '<div class="cap">Tagesgewinn heute (live vs. Schlusskurs Vortag)</div>' +
+      '<div class="big ' + signCls(tot.gain) + '">' + fmtEur(tot.gain) + ' \u20ac</div>' +
+      '<div class="rows">' +
+      '<div class="dep-srow"><span class="k">Depotwert jetzt</span><span>' + fmtEur(tot.now) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Depotwert Vortagesschluss</span><span>' + fmtEur(tot.prev) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Ver\u00e4nderung</span><span class="' + signCls(totPct) + '">' + fmtPct(totPct) + '</span></div>' +
+      (pending ? '<div class="dep-srow"><span class="k">Ohne Kurs (fehlt in Summe)</span><span>' + pending + '</span></div>' : '') +
+      '</div></div>';
+
+    var groups = {}, order = [];
+    rows.forEach(function (r) {
+      var g = r.p.depot || "Depot";
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(r);
+    });
+    order.forEach(function (g) {
+      var rs = groups[g];
+      var sub = rs.reduce(function (s, r) { return s + (r.pending ? 0 : r.gain); }, 0);
+      html += '<div class="dep-group"><span>' + g + '</span><span class="' + signCls(sub) + '">' + fmtEur(sub) + ' \u20ac</span></div>';
+      rs.sort(function (a, b) { return (b.pending ? -1e18 : b.gain) - (a.pending ? -1e18 : a.gain); });
+      rs.forEach(function (r) {
+        var p = r.p;
+        if (r.pending) {
+          html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
+            '<div class="s">' + p.stueck + ' Stk</div></div>' +
+            '<div class="r"><div class="net" style="color:var(--muted)">\u2026</div><div class="sub">kein Kurs</div></div></div>';
+        } else {
+          html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
+            '<div class="s">' + p.stueck + ' Stk \u00b7 ' + fmtEur(r.prev) + ' \u2192 ' + fmtEur(r.kurs) + '</div></div>' +
+            '<div class="r"><div class="net ' + signCls(r.gain) + '">' + fmtEur(r.gain) + ' \u20ac</div>' +
+            '<div class="sub">' + fmtPct(r.pct / 100) + ' heute</div></div></div>';
+        }
+      });
+    });
+    dayContent.innerHTML = html;
+    var cards = dayContent.querySelectorAll(".dep-card .t");
+    var i = 0;
+    order.forEach(function (g) {
+      groups[g].forEach(function (r) { cards[i++].textContent = r.p.titel || r.p.symbol; });
+    });
+  }
+
   // Seitenumschaltung: Pager verschiebt beide Seiten wie bei iOS
   var pager = document.getElementById("pager");
   var pages = pager.querySelectorAll(".page");
+  var PAGE_COUNT = pages.length;
   function slideDist() { return pages[0].offsetWidth + 48; }
-  function activePage() { return pages[depotOpen ? 1 : 0]; }
+  function activePage() { return pages[pageIndex]; }
   function applyPage() {
-    pager.style.transform = "translateX(" + (depotOpen ? -slideDist() : 0) + "px)";
+    depotOpen = pageIndex === 1;
+    pager.style.transform = "translateX(" + (-pageIndex * slideDist()) + "px)";
   }
-  function setPage(open) {
-    depotOpen = open;
+  function setPage(i) {
+    pageIndex = Math.max(0, Math.min(PAGE_COUNT - 1, i));
     pager.classList.remove("dragging");
     applyPage();
-    if (depotOpen) renderDepot();
+    renderActivePage();
   }
   document.getElementById("pageBtn").addEventListener("click", function () {
-    setPage(!depotOpen);
+    setPage((pageIndex + 1) % PAGE_COUNT);
   });
   window.addEventListener("resize", applyPage);
 
@@ -1126,7 +1203,7 @@
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;
     dragging = false;
-    dragBase = depotOpen ? -slideDist() : 0;
+    dragBase = -pageIndex * slideDist();
   }, { passive: true });
   document.addEventListener("touchmove", function (e) {
     if (dragStartX === null) return;
@@ -1141,20 +1218,20 @@
         return;
       }
     }
-    var off = Math.max(-slideDist(), Math.min(0, dragBase + dx));
+    var off = Math.max(-(PAGE_COUNT - 1) * slideDist(), Math.min(0, dragBase + dx));
     pager.style.transform = "translateX(" + off + "px)";
   }, { passive: true });
   document.addEventListener("touchend", function (e) {
     if (dragStartX === null || !dragging) { dragStartX = null; return; }
     pager.classList.remove("dragging");
     var dx = e.changedTouches[0].clientX - dragStartX;
-    var target = depotOpen;
-    // Ab ~einem Viertel der Breite umschalten, sonst zurueckfedern
-    if (!depotOpen && dx < -slideDist() * 0.22) target = true;
-    if (depotOpen && dx > slideDist() * 0.22) target = false;
-    depotOpen = target;
+    var target = pageIndex;
+    // Ab ~einem Viertel der Breite eine Seite weiter, sonst zurueckfedern
+    if (dx < -slideDist() * 0.22) target = pageIndex + 1;
+    if (dx > slideDist() * 0.22) target = pageIndex - 1;
+    pageIndex = Math.max(0, Math.min(PAGE_COUNT - 1, target));
     applyPage();
-    if (depotOpen) renderDepot();
+    renderActivePage();
     dragStartX = null;
     dragging = false;
   }, { passive: true });
@@ -1230,6 +1307,7 @@
   // Start
   renderPending();
   renderDepot();
+  renderDay();
   refresh();
 })();
 </script>
