@@ -28,6 +28,16 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  html, body { overflow-x: hidden; }
+  #pager {
+    display: flex; width: 200%;
+    touch-action: pan-y;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.35, 1);
+    will-change: transform;
+  }
+  #pager.dragging { transition: none; }
+  #pager .page { width: 50%; flex: none; min-width: 0; }
+
   header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 18px 2px 14px;
@@ -279,12 +289,13 @@
   </svg>
 </div>
 
+<div id="pager">
+<div class="page">
 <div id="error"></div>
 <div id="grid"></div>
-<div id="status"></div>
-
+</div>
 <!-- Seite 2: Depot (fiktiver Verkauf) -->
-<div id="depotPage" style="display:none">
+<div class="page" id="depotPage">
   <div id="depotContent"></div>
   <div id="depotImport" style="display:none">
     <p style="color:var(--muted);font-size:13px;line-height:1.5;margin:6px 2px 10px">
@@ -295,6 +306,8 @@
   </div>
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
 </div>
+</div>
+<div id="status"></div>
 
 <!-- Symbole verwalten -->
 <div class="sheet" id="editSheet">
@@ -332,7 +345,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v29";
+  var VERSION = "v30";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1076,33 +1089,61 @@
     });
   }
 
-  // Seitenumschaltung (Knopf oder Wischen)
+  // Seitenumschaltung: Pager verschiebt beide Seiten wie bei iOS
+  var pager = document.getElementById("pager");
+  function pageWidth() { return pager.offsetWidth / 2; }
+  function applyPage() {
+    pager.style.transform = "translateX(" + (depotOpen ? -pageWidth() : 0) + "px)";
+  }
   function setPage(open) {
-    if (open === depotOpen) return;
     depotOpen = open;
-    depotPage.style.display = depotOpen ? "block" : "none";
-    grid.style.display = depotOpen ? "none" : "grid";
-    if (depotOpen) { renderDepot(); refresh(); }
+    pager.classList.remove("dragging");
+    applyPage();
+    if (depotOpen) renderDepot();
   }
   document.getElementById("pageBtn").addEventListener("click", function () {
     setPage(!depotOpen);
   });
+  window.addEventListener("resize", applyPage);
 
-  // Wischen: nach links -> Depot, nach rechts -> Watchlist
-  var swipeX = null, swipeY = null;
+  // Interaktives Ziehen: Seite folgt dem Finger, schnappt beim Loslassen
+  var dragStartX = null, dragStartY = null, dragging = false, dragBase = 0;
   document.addEventListener("touchstart", function (e) {
-    if (sheetIsOpen()) { swipeX = null; return; }
-    swipeX = e.touches[0].clientX;
-    swipeY = e.touches[0].clientY;
+    if (sheetIsOpen()) { dragStartX = null; return; }
+    dragStartX = e.touches[0].clientX;
+    dragStartY = e.touches[0].clientY;
+    dragging = false;
+    dragBase = depotOpen ? -pageWidth() : 0;
+  }, { passive: true });
+  document.addEventListener("touchmove", function (e) {
+    if (dragStartX === null) return;
+    var dx = e.touches[0].clientX - dragStartX;
+    var dy = e.touches[0].clientY - dragStartY;
+    if (!dragging) {
+      // Erst ab klar horizontaler Bewegung uebernehmen
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        dragging = true;
+        pager.classList.add("dragging");
+      } else {
+        return;
+      }
+    }
+    var off = Math.max(-pageWidth(), Math.min(0, dragBase + dx));
+    pager.style.transform = "translateX(" + off + "px)";
   }, { passive: true });
   document.addEventListener("touchend", function (e) {
-    if (swipeX === null) return;
-    var dx = e.changedTouches[0].clientX - swipeX;
-    var dy = e.changedTouches[0].clientY - swipeY;
-    swipeX = null;
-    // Nur klar horizontale Gesten werten (kein Konflikt mit Scrollen/Ziehen)
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
-    if (dx < 0) setPage(true); else setPage(false);
+    if (dragStartX === null || !dragging) { dragStartX = null; return; }
+    pager.classList.remove("dragging");
+    var dx = e.changedTouches[0].clientX - dragStartX;
+    var target = depotOpen;
+    // Ab ~einem Viertel der Breite umschalten, sonst zurueckfedern
+    if (!depotOpen && dx < -pageWidth() * 0.22) target = true;
+    if (depotOpen && dx > pageWidth() * 0.22) target = false;
+    depotOpen = target;
+    applyPage();
+    if (depotOpen) renderDepot();
+    dragStartX = null;
+    dragging = false;
   }, { passive: true });
 
   // Import
@@ -1175,6 +1216,7 @@
 
   // Start
   renderPending();
+  renderDepot();
   refresh();
 })();
 </script>
