@@ -332,7 +332,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v28";
+  var VERSION = "v29";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1076,13 +1076,34 @@
     });
   }
 
-  // Seitenumschaltung
-  document.getElementById("pageBtn").addEventListener("click", function () {
-    depotOpen = !depotOpen;
+  // Seitenumschaltung (Knopf oder Wischen)
+  function setPage(open) {
+    if (open === depotOpen) return;
+    depotOpen = open;
     depotPage.style.display = depotOpen ? "block" : "none";
     grid.style.display = depotOpen ? "none" : "grid";
     if (depotOpen) { renderDepot(); refresh(); }
+  }
+  document.getElementById("pageBtn").addEventListener("click", function () {
+    setPage(!depotOpen);
   });
+
+  // Wischen: nach links -> Depot, nach rechts -> Watchlist
+  var swipeX = null, swipeY = null;
+  document.addEventListener("touchstart", function (e) {
+    if (sheetIsOpen()) { swipeX = null; return; }
+    swipeX = e.touches[0].clientX;
+    swipeY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener("touchend", function (e) {
+    if (swipeX === null) return;
+    var dx = e.changedTouches[0].clientX - swipeX;
+    var dy = e.changedTouches[0].clientY - swipeY;
+    swipeX = null;
+    // Nur klar horizontale Gesten werten (kein Konflikt mit Scrollen/Ziehen)
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    if (dx < 0) setPage(true); else setPage(false);
+  }, { passive: true });
 
   // Import
   document.getElementById("importBtn").addEventListener("click", function () {
