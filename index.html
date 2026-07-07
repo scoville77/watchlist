@@ -28,15 +28,23 @@
     -webkit-text-size-adjust: 100%;
   }
 
-  html, body { overflow-x: hidden; }
+  html, body { overflow: hidden; height: 100%; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+  header { flex: none; }
   #pager {
-    display: flex; width: 200%;
+    flex: 1 1 auto; min-height: 0;
+    display: flex; width: calc(200% + 48px); gap: 48px;
     touch-action: pan-y;
-    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.35, 1);
+    transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1);
     will-change: transform;
   }
   #pager.dragging { transition: none; }
-  #pager .page { width: 50%; flex: none; min-width: 0; }
+  #pager .page {
+    width: calc((100% - 48px) / 2); flex: none; min-width: 0;
+    overflow-y: auto; overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 24px;
+  }
 
   header {
     display: flex; align-items: center; justify-content: space-between;
@@ -145,7 +153,7 @@
   .btn.danger { background: #b3261e; }
   .btn.secondary { background: var(--panel); border: 1px solid var(--line); color: var(--text); margin-top: 14px; }
 
-  #status { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
+  #status, #status2 { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
 
   /* ---- Depot-Seite ---- */
   .dep-summary {
@@ -293,6 +301,7 @@
 <div class="page">
 <div id="error"></div>
 <div id="grid"></div>
+<div id="status"></div>
 </div>
 <!-- Seite 2: Depot (fiktiver Verkauf) -->
 <div class="page" id="depotPage">
@@ -305,9 +314,9 @@
     <button class="btn" id="importBtn" style="margin-top:10px">Importieren</button>
   </div>
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
+  <div id="status2"></div>
 </div>
 </div>
-<div id="status"></div>
 
 <!-- Symbole verwalten -->
 <div class="sheet" id="editSheet">
@@ -345,7 +354,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v30";
+  var VERSION = "v31";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -451,6 +460,8 @@
   // ---- DOM ----
   var grid = document.getElementById("grid");
   var statusEl = document.getElementById("status");
+  var status2El = document.getElementById("status2");
+  function setStatus(t) { statusEl.textContent = t; status2El.textContent = t; }
   var errorEl = document.getElementById("error");
   var refreshBtn = document.getElementById("refreshBtn");
   var editSheet = document.getElementById("editSheet");
@@ -773,7 +784,7 @@
     loading = true;
     errorEl.style.display = "none";
     refreshBtn.classList.add("spinning");
-    statusEl.textContent = "Aktualisiere…";
+    setStatus("Aktualisiere…");
 
     var wl = getSymbols();
     var all = getAllSymbols();
@@ -793,12 +804,12 @@
           errorEl.style.display = "block";
         }
         var now = new Date();
-        statusEl.textContent = "Stand: " +
+        setStatus("Stand: " +
           now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
-          " · " + VERSION;
+          " · " + VERSION);
       })
       .catch(function (e) {
-        statusEl.textContent = "Aktualisierung fehlgeschlagen";
+        setStatus("Aktualisierung fehlgeschlagen");
       })
       .finally(function () {
         loading = false;
@@ -947,9 +958,9 @@
       results.sort(sortQuotes);
       renderQuotes(results);
       if (depotOpen) renderDepot();
-      statusEl.textContent = "Stand: " +
+      setStatus("Stand: " +
         new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
-        " · " + VERSION;
+        " · " + VERSION);
     });
   }
   setInterval(tickOne, 6000);
@@ -1091,9 +1102,11 @@
 
   // Seitenumschaltung: Pager verschiebt beide Seiten wie bei iOS
   var pager = document.getElementById("pager");
-  function pageWidth() { return pager.offsetWidth / 2; }
+  var pages = pager.querySelectorAll(".page");
+  function slideDist() { return pages[0].offsetWidth + 48; }
+  function activePage() { return pages[depotOpen ? 1 : 0]; }
   function applyPage() {
-    pager.style.transform = "translateX(" + (depotOpen ? -pageWidth() : 0) + "px)";
+    pager.style.transform = "translateX(" + (depotOpen ? -slideDist() : 0) + "px)";
   }
   function setPage(open) {
     depotOpen = open;
@@ -1113,7 +1126,7 @@
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;
     dragging = false;
-    dragBase = depotOpen ? -pageWidth() : 0;
+    dragBase = depotOpen ? -slideDist() : 0;
   }, { passive: true });
   document.addEventListener("touchmove", function (e) {
     if (dragStartX === null) return;
@@ -1128,7 +1141,7 @@
         return;
       }
     }
-    var off = Math.max(-pageWidth(), Math.min(0, dragBase + dx));
+    var off = Math.max(-slideDist(), Math.min(0, dragBase + dx));
     pager.style.transform = "translateX(" + off + "px)";
   }, { passive: true });
   document.addEventListener("touchend", function (e) {
@@ -1137,8 +1150,8 @@
     var dx = e.changedTouches[0].clientX - dragStartX;
     var target = depotOpen;
     // Ab ~einem Viertel der Breite umschalten, sonst zurueckfedern
-    if (!depotOpen && dx < -pageWidth() * 0.22) target = true;
-    if (depotOpen && dx > pageWidth() * 0.22) target = false;
+    if (!depotOpen && dx < -slideDist() * 0.22) target = true;
+    if (depotOpen && dx > slideDist() * 0.22) target = false;
     depotOpen = target;
     applyPage();
     if (depotOpen) renderDepot();
@@ -1175,7 +1188,7 @@
   }
 
   document.addEventListener("touchstart", function (e) {
-    if (window.scrollY > 0 || sheetIsOpen() || loading) { pullStartY = null; return; }
+    if (activePage().scrollTop > 0 || sheetIsOpen() || loading) { pullStartY = null; return; }
     pullStartY = e.touches[0].clientY;
     pulling = false;
   }, { passive: true });
@@ -1183,7 +1196,7 @@
   document.addEventListener("touchmove", function (e) {
     if (pullStartY === null) return;
     var dy = e.touches[0].clientY - pullStartY;
-    if (dy <= 8 || window.scrollY > 0) return;
+    if (dy <= 8 || activePage().scrollTop > 0) return;
     pulling = true;
     var progress = Math.min(dy / PULL_TRIGGER, 1);
     ptr.classList.add("pulling");
