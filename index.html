@@ -383,7 +383,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v38";
+  var VERSION = "v39";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1216,6 +1216,23 @@
   }
 
   // ---- Seite 4: News zu den eigenen Werten (Yahoo-Suche) ----
+  // Firmennamen fuer die News-Suche. null = keine sinnvollen Einzelnews
+  // (breite ETFs/Fonds -> Yahoo liefert sonst wirre Volltext-Treffer).
+  var NEWS_QUERY = {
+    "RDC.DE": "Redcare Pharmacy",
+    "ADN1.DE": "adesso SE",
+    "U6Z.DE": "Uranium Energy Corp",
+    "VVSM.DE": null,
+    "SLVR.DE": null,
+    "IUSN.DE": null,
+    "VWCE.DE": null,
+    "18MF.DE": null
+  };
+  function newsQueryFor(sym) {
+    if (NEWS_QUERY.hasOwnProperty(sym)) return NEWS_QUERY[sym]; // darf null sein
+    if (isIsin(sym)) return null;
+    return sym.replace(/\.DE$/i, "");
+  }
   var newsContent = document.getElementById("newsContent");
   var newsCache = { ts: 0, items: [] };
 
@@ -1236,13 +1253,17 @@
     var fresh = Date.now() - newsCache.ts < 10 * 60 * 1000;
     if (fresh && !force) { paintNews(); return; }
 
-    var symbols = getSymbols().filter(function (s) { return !isIsin(s); });
+    var symbols = getSymbols().filter(function (s) { return newsQueryFor(s); });
     Promise.all(symbols.map(function (s) {
+      var query = newsQueryFor(s);
       var url = "https://query1.finance.yahoo.com/v1/finance/search?q=" +
-        encodeURIComponent(s) + "&quotesCount=0&newsCount=5&listsCount=0&_cb=" + Date.now();
-      return proxiedJson(url)
+        encodeURIComponent(query) + "&quotesCount=0&newsCount=5&listsCount=0&enableFuzzyQuery=false&_cb=" + Date.now();
+      // Hartes Zeitlimit: haengt ein Proxy, wird dieser Wert ausgelassen statt alles zu blockieren
+      var timeout = new Promise(function (res) { setTimeout(function () { res({ s: s, news: [] }); }, 9000); });
+      var fetchP = proxiedJson(url)
         .then(function (d) { return { s: s, news: (d && d.news) || [] }; })
         .catch(function () { return { s: s, news: [] }; });
+      return Promise.race([fetchP, timeout]);
     })).then(function (results) {
       var seen = {}, items = [];
       results.forEach(function (r) {
@@ -1260,6 +1281,9 @@
       items.sort(function (a, b) { return b.time - a.time; });
       newsCache = { ts: Date.now(), items: items.slice(0, 40) };
       paintNews();
+      setStatus("News-Stand: " +
+        new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) +
+        " \u00b7 " + VERSION);
     });
   }
 
