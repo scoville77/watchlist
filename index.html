@@ -33,14 +33,14 @@
   header { flex: none; }
   #pager {
     flex: 1 1 auto; min-height: 0;
-    display: flex; width: calc(300% + 96px); gap: 48px;
+    display: flex; width: calc(400% + 144px); gap: 48px;
     touch-action: pan-y;
     transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1);
     will-change: transform;
   }
   #pager.dragging { transition: none; }
   #pager .page {
-    width: calc((100% - 96px) / 3); flex: none; min-width: 0;
+    width: calc((100% - 144px) / 4); flex: none; min-width: 0;
     overflow-y: auto; overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 24px;
@@ -153,7 +153,7 @@
   .btn.danger { background: #b3261e; }
   .btn.secondary { background: var(--panel); border: 1px solid var(--line); color: var(--text); margin-top: 14px; }
 
-  #status, #status2, #status3 { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
+  #status, #status2, #status3, #status4 { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
 
   /* ---- Depot-Seite ---- */
   .dep-title {
@@ -193,6 +193,10 @@
   .dep-card .sub { color: var(--muted); font-size: 11px; margin-top: 3px; }
   .pos { color: #35d073; }
   .neg { color: #ff6b5e; }
+  a.dep-card { text-decoration: none; color: inherit; }
+  .dep-card .t.wrap { white-space: normal; line-height: 1.35; font-size: 13.5px; }
+  .news-meta { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
+  .news-tag { color: #4da3ff; font-weight: 800; }
   #depotImport textarea {
     width: 100%; min-height: 130px; border-radius: 12px;
     border: 1px solid var(--line); background: var(--panel); color: var(--text);
@@ -325,6 +329,11 @@
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
   <div id="status2"></div>
 </div>
+<!-- Seite 4: News zu den eigenen Werten -->
+<div class="page" id="newsPage">
+  <div id="newsContent"></div>
+  <div id="status4"></div>
+</div>
 </div>
 
 <!-- Symbole verwalten -->
@@ -363,7 +372,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v36";
+  var VERSION = "v37";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -471,7 +480,8 @@
   var statusEl = document.getElementById("status");
   var status2El = document.getElementById("status2");
   var status3El = document.getElementById("status3");
-  function setStatus(t) { statusEl.textContent = t; status2El.textContent = t; status3El.textContent = t; }
+  var status4El = document.getElementById("status4");
+  function setStatus(t) { statusEl.textContent = t; status2El.textContent = t; status3El.textContent = t; status4El.textContent = t; }
   var errorEl = document.getElementById("error");
   var refreshBtn = document.getElementById("refreshBtn");
   var editSheet = document.getElementById("editSheet");
@@ -794,6 +804,7 @@
     loading = true;
     errorEl.style.display = "none";
     refreshBtn.classList.add("spinning");
+    if (pageIndex === 3) renderNews(true);
     setStatus("Aktualisiere…");
 
     var wl = getSymbols();
@@ -995,6 +1006,7 @@
   function renderActivePage() {
     if (pageIndex === 1) renderDay();
     else if (pageIndex === 2) renderDepot();
+    else if (pageIndex === 3) renderNews();
   }
   var depotPage = document.getElementById("depotPage");
   var depotContent = document.getElementById("depotContent");
@@ -1189,6 +1201,88 @@
     var i = 0;
     order.forEach(function (g) {
       groups[g].forEach(function (r) { cards[i++].textContent = r.p.titel || r.p.symbol; });
+    });
+  }
+
+  // ---- Seite 4: News zu den eigenen Werten (Yahoo-Suche) ----
+  var newsContent = document.getElementById("newsContent");
+  var newsCache = { ts: 0, items: [] };
+
+  function timeAgo(ms) {
+    var m = Math.max(1, Math.round((Date.now() - ms) / 60000));
+    if (m < 60) return "vor " + m + " Min.";
+    var h = Math.round(m / 60);
+    if (h < 24) return "vor " + h + " Std.";
+    return "vor " + Math.round(h / 24) + " Tg.";
+  }
+
+  function renderNews(force) {
+    // Titel + Ladehinweis sofort zeigen
+    if (!newsContent.querySelector(".dep-title")) {
+      newsContent.innerHTML = '<div class="dep-title">News</div>' +
+        '<div id="newsList"><p style="color:var(--muted);font-size:14px;margin:8px 2px">News werden geladen\u2026</p></div>';
+    }
+    var fresh = Date.now() - newsCache.ts < 10 * 60 * 1000;
+    if (fresh && !force) { paintNews(); return; }
+
+    var symbols = getSymbols().filter(function (s) { return !isIsin(s); });
+    Promise.all(symbols.map(function (s) {
+      var url = "https://query1.finance.yahoo.com/v1/finance/search?q=" +
+        encodeURIComponent(s) + "&quotesCount=0&newsCount=5&listsCount=0&_cb=" + Date.now();
+      return proxiedJson(url)
+        .then(function (d) { return { s: s, news: (d && d.news) || [] }; })
+        .catch(function () { return { s: s, news: [] }; });
+    })).then(function (results) {
+      var seen = {}, items = [];
+      results.forEach(function (r) {
+        r.news.forEach(function (n) {
+          var key = n.uuid || n.title;
+          if (!n.title || !n.link || seen[key]) return;
+          seen[key] = true;
+          items.push({
+            sym: r.s, title: n.title, link: n.link,
+            publisher: n.publisher || "",
+            time: n.providerPublishTime ? n.providerPublishTime * 1000 : 0
+          });
+        });
+      });
+      items.sort(function (a, b) { return b.time - a.time; });
+      newsCache = { ts: Date.now(), items: items.slice(0, 40) };
+      paintNews();
+    });
+  }
+
+  function paintNews() {
+    var list = document.getElementById("newsList");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!newsCache.items.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:14px;margin:8px 2px">Keine News gefunden \u2013 sp\u00e4ter erneut versuchen.</p>';
+      return;
+    }
+    newsCache.items.forEach(function (n) {
+      var a = document.createElement("a");
+      a.className = "dep-card";
+      a.href = n.link;
+      a.target = "_blank";
+      a.rel = "noopener";
+      var l = document.createElement("div");
+      l.className = "l";
+      var t = document.createElement("div");
+      t.className = "t wrap";
+      t.textContent = n.title;
+      var meta = document.createElement("div");
+      meta.className = "news-meta";
+      var tag = document.createElement("span");
+      tag.className = "news-tag";
+      tag.textContent = labelFor(n.sym);
+      meta.appendChild(tag);
+      meta.appendChild(document.createTextNode(
+        " \u00b7 " + n.publisher + (n.time ? " \u00b7 " + timeAgo(n.time) : "")));
+      l.appendChild(t);
+      l.appendChild(meta);
+      a.appendChild(l);
+      list.appendChild(a);
     });
   }
 
