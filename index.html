@@ -363,7 +363,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v34";
+  var VERSION = "v35";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -974,8 +974,19 @@
     });
   }
   setInterval(tickOne, 6000);
+  // Beim Zurueckkehren in die App: nach oben scrollen und aktualisieren.
+  // War die App laenger als 3 Minuten im Hintergrund: zurueck zur Watchlist.
+  var hiddenSince = null;
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible") refresh();
+    if (document.visibilityState === "hidden") {
+      hiddenSince = Date.now();
+      return;
+    }
+    if (hiddenSince && Date.now() - hiddenSince > 3 * 60 * 1000) {
+      setPage(0);
+    }
+    activePage().scrollTop = 0;
+    refresh();
   });
 
   // ---- Seite 2: Depot (fiktiver Verkauf) ----
