@@ -363,7 +363,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v35";
+  var VERSION = "v36";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1004,6 +1004,9 @@
   function fmtEur(x) {
     return x.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  function fmtEur0(x) {
+    return x.toLocaleString("de-DE", { maximumFractionDigits: 0 });
+  }
   function fmtPct(x) {
     return (x >= 0 ? "+" : "") + (x * 100).toLocaleString("de-DE",
       { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
@@ -1108,11 +1111,8 @@
         } else {
           // p.a. erst ab 180 Tagen Haltedauer - sonst hochgerechnete Fantasiezahlen
           var paTeil = r.tage >= 180 ? ' \u00b7 ' + fmtPct(r.pa) + ' p.a.' : '';
-          var seit = new Date(p.kaufdatum).toLocaleDateString("de-DE",
-            { day: "2-digit", month: "2-digit", year: "2-digit" });
           html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
-            '<div class="s">' + p.stueck + ' Stk \u00b7 \u00d8 ' + fmtEur(p.kaufkurs) +
-            ' \u2192 ' + fmtEur(r.kurs) + ' \u00b7 seit ' + seit + '</div></div>' +
+            '<div class="s">Wert ' + fmtEur0(p.stueck * r.kurs) + ' \u20ac</div></div>' +
             '<div class="r"><div class="net ' + signCls(r.netto) + '">' + fmtEur(r.netto) + ' \u20ac</div>' +
             '<div class="sub">' + fmtPct(r.pctNetto) + paTeil + ' \u00b7 KESt ' + fmtEur(-r.kest) + '</div></div></div>';
         }
@@ -1178,7 +1178,7 @@
             '<div class="r"><div class="net" style="color:var(--muted)">\u2026</div><div class="sub">kein Kurs</div></div></div>';
         } else {
           html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
-            '<div class="s">' + p.stueck + ' Stk \u00b7 ' + fmtEur(r.prev) + ' \u2192 ' + fmtEur(r.kurs) + '</div></div>' +
+            '<div class="s">Wert ' + fmtEur0(p.stueck * r.kurs) + ' \u20ac</div></div>' +
             '<div class="r"><div class="net ' + signCls(r.gain) + '">' + fmtEur(r.gain) + ' \u20ac</div>' +
             '<div class="sub">' + fmtPct(r.pct / 100) + ' heute</div></div></div>';
         }
