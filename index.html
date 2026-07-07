@@ -363,7 +363,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v33";
+  var VERSION = "v34";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1192,10 +1192,12 @@
     pager.style.transform = "translateX(" + (-pageIndex * slideDist()) + "px)";
   }
   function setPage(i) {
+    var prev = pageIndex;
     pageIndex = Math.max(0, Math.min(PAGE_COUNT - 1, i));
     pager.classList.remove("dragging");
     applyPage();
     renderActivePage();
+    if (pageIndex !== prev) activePage().scrollTop = 0;
   }
   document.getElementById("pageBtn").addEventListener("click", function () {
     setPage((pageIndex + 1) % PAGE_COUNT);
@@ -1235,9 +1237,11 @@
     // Ab ~einem Viertel der Breite eine Seite weiter, sonst zurueckfedern
     if (dx < -slideDist() * 0.22) target = pageIndex + 1;
     if (dx > slideDist() * 0.22) target = pageIndex - 1;
+    var prevIdx = pageIndex;
     pageIndex = Math.max(0, Math.min(PAGE_COUNT - 1, target));
     applyPage();
     renderActivePage();
+    if (pageIndex !== prevIdx) activePage().scrollTop = 0;
     dragStartX = null;
     dragging = false;
   }, { passive: true });
