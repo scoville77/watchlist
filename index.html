@@ -370,7 +370,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v43";
+  var VERSION = "v44";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1241,11 +1241,12 @@
       if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.4) {
         dragging = true;
         pager.classList.add("dragging");
-        lockScrollTop = activePage().scrollTop;
-        // Nachbarseiten auf Anfang, damit die Vorschau sauber mit Titel startet
+        // Alle Seiten auf Anfang (auch die aktive): beim Anhalten stehen
+        // dann zwei saubere Seitenkoepfe nebeneinander
         for (var pi = 0; pi < pages.length; pi++) {
-          if (pi !== pageIndex) pages[pi].scrollTop = 0;
+          pages[pi].scrollTop = 0;
         }
+        lockScrollTop = 0;
       } else {
         return;
       }
