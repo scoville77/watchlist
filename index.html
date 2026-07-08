@@ -370,7 +370,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v42";
+  var VERSION = "v43";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1242,6 +1242,10 @@
         dragging = true;
         pager.classList.add("dragging");
         lockScrollTop = activePage().scrollTop;
+        // Nachbarseiten auf Anfang, damit die Vorschau sauber mit Titel startet
+        for (var pi = 0; pi < pages.length; pi++) {
+          if (pi !== pageIndex) pages[pi].scrollTop = 0;
+        }
       } else {
         return;
       }
