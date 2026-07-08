@@ -358,7 +358,7 @@
   <div class="detail-row"><span class="k">Kurs</span><span class="v" id="detailPrice">–</span></div>
   <div class="detail-row"><span class="k">Veränderung</span><span class="v" id="detailPct">–</span></div>
   <div class="detail-row"><span class="k">Börse / Quelle</span><span class="v" id="detailExchange">–</span></div>
-  <div class="detail-row" id="detailAhRow" style="display:none"><span class="k">Nachbörslich (L&amp;S)</span><span class="v" id="detailAh">–</span></div>
+  <div class="detail-row" id="detailAhRow" style="display:none"><span class="k" id="detailAhLabel">Nachbörslich (L&amp;S)</span><span class="v" id="detailAh">–</span></div>
   <div class="detail-row"><span class="k">Kurszeit</span><span class="v" id="detailTime">–</span></div>
   <div class="detail-row"><span class="k">Währung</span><span class="v" id="detailCurrency">–</span></div>
   <input class="field" id="renameInput" placeholder="Kachelname" autocorrect="off" style="margin-top:14px">
@@ -370,7 +370,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v44";
+  var VERSION = "v45";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -546,7 +546,8 @@
         d.style.color = textColor(q.pct);
         var ahHtml = "";
         if (q.ahPct != null && Math.abs(q.ahPct) >= 0.0005) {
-          ahHtml = '<div class="ah ' + (q.ahPct >= 0 ? "up" : "down") + '">nachb. ' +
+          var ahLabel = inPreMarket() ? "vorb. " : "nachb. ";
+          ahHtml = '<div class="ah ' + (q.ahPct >= 0 ? "up" : "down") + '">' + ahLabel +
             (q.ahPct >= 0 ? "+" : "") + (q.ahPct * 100).toFixed(2).replace(".", ",") + '%</div>';
         }
         d.innerHTML =
@@ -595,6 +596,8 @@
     var ahRow = document.getElementById("detailAhRow");
     if (q && q.ahPct != null) {
       ahRow.style.display = "flex";
+      document.getElementById("detailAhLabel").textContent =
+        inPreMarket() ? "Vorb\u00f6rslich (L&S)" : "Nachb\u00f6rslich (L&S)";
       document.getElementById("detailAh").textContent =
         q.ahPrice.toFixed(2).replace(".", ",") + " (" + (q.ahPct >= 0 ? "+" : "") +
         (q.ahPct * 100).toFixed(2).replace(".", ",") + "%)";
@@ -650,12 +653,20 @@
     var m = d.getHours() * 60 + d.getMinutes();
     return m >= 17 * 60 + 35 && m <= 23 * 60 + 10;
   }
+  function inPreMarket() {
+    var d = new Date();
+    var day = d.getDay();
+    if (day < 1 || day > 5) return false;
+    var m = d.getHours() * 60 + d.getMinutes();
+    return m >= 7 * 60 + 30 && m <= 9 * 60 + 15;
+  }
+  function inOffHours() { return inAfterHours() || inPreMarket(); }
 
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
   function fetchQuote(sym) {
     if (isIsin(sym)) return fetchQuoteLS(sym);
     var y = fetchQuoteYahoo(sym);
-    if (inAfterHours() && AH_ISIN[sym]) {
+    if (inOffHours() && AH_ISIN[sym]) {
       return Promise.all([y, fetchQuoteLS(AH_ISIN[sym])]).then(function (r) {
         var q = r[0], ls = r[1];
         if (q.ok && ls.ok && q.price) {
