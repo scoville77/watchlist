@@ -83,9 +83,10 @@
   .tile .price { font-size: 11px; opacity: 0.85; }
   .tile.pending { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
   .tile .ah {
-    font-size: 10.5px; font-weight: 800; margin-top: 3px;
-    background: rgba(0,0,0,0.4); border-radius: 8px; padding: 2px 8px;
+    font-size: 10px; font-weight: 800; margin-top: 3px;
+    background: rgba(0,0,0,0.4); border-radius: 8px; padding: 2px 7px;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap; max-width: 100%;
   }
   .tile .ah.up { color: #7dffab; }
   .tile .ah.down { color: #ffb3a8; }
@@ -369,7 +370,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v40";
+  var VERSION = "v41";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -546,11 +547,11 @@
         var ahHtml = "";
         if (q.ahPct != null && Math.abs(q.ahPct) >= 0.0005) {
           ahHtml = '<div class="ah ' + (q.ahPct >= 0 ? "up" : "down") + '">nachb. ' +
-            (q.ahPct >= 0 ? "+" : "") + (q.ahPct * 100).toFixed(2).replace(".", ",") + ' %</div>';
+            (q.ahPct >= 0 ? "+" : "") + (q.ahPct * 100).toFixed(2).replace(".", ",") + '%</div>';
         }
         d.innerHTML =
           '<div class="sym"></div>' +
-          '<div class="pct">' + (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + '&nbsp;%</div>' +
+          '<div class="pct">' + (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + '%</div>' +
           '<div class="price">' + q.price.toFixed(2).replace(".", ",") + '</div>' + ahHtml;
       } else {
         failures++;
@@ -581,7 +582,7 @@
     document.getElementById("detailPrice").textContent =
       q && q.ok ? q.price.toFixed(2).replace(".", ",") + (q.currency ? " " + q.currency : "") : "–";
     document.getElementById("detailPct").textContent =
-      q && q.ok ? (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + " % zum Vortagesschluss" : "keine Daten";
+      q && q.ok ? (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + "% zum Vortagesschluss" : "keine Daten";
     document.getElementById("detailExchange").textContent = (q && q.exchange) || (isIsin(sym) ? "Lang & Schwarz" : "Yahoo Finance");
     document.getElementById("detailTime").textContent = (function () {
       if (!q || !q.time) return "–";
@@ -596,7 +597,7 @@
       ahRow.style.display = "flex";
       document.getElementById("detailAh").textContent =
         q.ahPrice.toFixed(2).replace(".", ",") + " (" + (q.ahPct >= 0 ? "+" : "") +
-        (q.ahPct * 100).toFixed(2).replace(".", ",") + " %)";
+        (q.ahPct * 100).toFixed(2).replace(".", ",") + "%)";
     } else {
       ahRow.style.display = "none";
     }
@@ -1015,7 +1016,7 @@
   }
   function fmtPct(x) {
     return (x >= 0 ? "+" : "") + (x * 100).toLocaleString("de-DE",
-      { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
   }
   function signCls(x) { return x >= 0 ? "pos" : "neg"; }
 
