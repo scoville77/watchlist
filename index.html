@@ -370,7 +370,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v45";
+  var VERSION = "v46";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -646,21 +646,24 @@
     "VVSM.DE": "IE00BMC38736",
     "18MF.DE": "FR0010755611"
   };
-  function inAfterHours() {
+  // Pille immer dann, wenn XETRA NICHT selbst live liefert:
+  // werktags ausserhalb ~9:15-17:35 sowie nachts und am Wochenende.
+  function inXetraHours() {
     var d = new Date();
     var day = d.getDay();
     if (day < 1 || day > 5) return false;
     var m = d.getHours() * 60 + d.getMinutes();
-    return m >= 17 * 60 + 35 && m <= 23 * 60 + 10;
+    return m >= 9 * 60 + 15 && m <= 17 * 60 + 35;
   }
+  function inOffHours() { return !inXetraHours(); }
+  // "vorb." nur, wenn L&S morgens schon wieder frisch taxt (ab 7:30)
   function inPreMarket() {
     var d = new Date();
     var day = d.getDay();
     if (day < 1 || day > 5) return false;
     var m = d.getHours() * 60 + d.getMinutes();
-    return m >= 7 * 60 + 30 && m <= 9 * 60 + 15;
+    return m >= 7 * 60 + 30 && m < 9 * 60 + 15;
   }
-  function inOffHours() { return inAfterHours() || inPreMarket(); }
 
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
   function fetchQuote(sym) {
