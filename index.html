@@ -370,7 +370,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v41";
+  var VERSION = "v42";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1231,6 +1231,7 @@
     dragging = false;
     dragBase = -pageIndex * slideDist();
   }, { passive: true });
+  var lockScrollTop = 0;
   document.addEventListener("touchmove", function (e) {
     if (dragStartX === null) return;
     var dx = e.touches[0].clientX - dragStartX;
@@ -1240,13 +1241,17 @@
       if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.4) {
         dragging = true;
         pager.classList.add("dragging");
+        lockScrollTop = activePage().scrollTop;
       } else {
         return;
       }
     }
+    // Waehrend des horizontalen Ziehens: Vertikale komplett sperren
+    if (e.cancelable) e.preventDefault();
+    activePage().scrollTop = lockScrollTop;
     var off = Math.max(-(PAGE_COUNT - 1) * slideDist(), Math.min(0, dragBase + dx));
     pager.style.transform = "translateX(" + off + "px)";
-  }, { passive: true });
+  }, { passive: false });
   document.addEventListener("touchend", function (e) {
     if (dragStartX === null || !dragging) { dragStartX = null; return; }
     pager.classList.remove("dragging");
@@ -1300,6 +1305,7 @@
 
   document.addEventListener("touchmove", function (e) {
     if (pullStartY === null) return;
+    if (dragging) { pullStartY = null; ptr.style.opacity = 0; return; }
     var dy = e.touches[0].clientY - pullStartY;
     if (dy <= 8 || activePage().scrollTop > 0) return;
     pulling = true;
