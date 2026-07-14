@@ -173,10 +173,11 @@
   .dep-summary .cap { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
   .dep-summary .rows { margin-top: 14px; }
   .dep-srow {
-    display: flex; justify-content: space-between; font-size: 13px;
+    display: flex; justify-content: space-between; gap: 14px; font-size: 13px;
     padding: 7px 0; border-top: 1px solid var(--line);
     font-variant-numeric: tabular-nums;
   }
+  .dep-srow span:last-child { white-space: nowrap; }
   .dep-srow .k { color: var(--muted); }
   .dep-group { color: var(--muted); font-size: 12px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.06em;
@@ -370,7 +371,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v48";
+  var VERSION = "v49";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1098,15 +1099,18 @@
     var html = "";
 
     // Gesamt-Karte: Ergebnis nach Spesen x2, VOR KESt - Steuer nur als Info
+    var kestLabel = c.tot.kest >= 0
+      ? 'Vorauss. KESt ' + (c.kestSatz * 100).toLocaleString("de-DE") + '%'
+      : 'M\u00f6gl. KESt-Gutschrift';
     html += '<div class="dep-title">Gesamtgewinn</div>' +
       '<div class="dep-summary">' +
-      '<div class="cap">bei Verkauf jetzt \u00b7 nach Spesen \u00d7 2 \u00b7 inkl. Dividenden \u00b7 vor KESt</div>' +
+      '<div class="cap">bei Verkauf jetzt \u00b7 Spesen \u00d7 2 \u00b7 inkl. Div. \u00b7 vor KESt</div>' +
       '<div class="big ' + signCls(c.tot.ergInkl) + '">' + fmtEur(c.tot.ergInkl) + ' \u20ac</div>' +
       '<div class="rows">' +
       '<div class="dep-srow"><span class="k">Verkaufserl\u00f6s (nach Spesen)</span><span>' + fmtEur(c.tot.erloes) + ' \u20ac</span></div>' +
-      '<div class="dep-srow"><span class="k">Einstand gesamt (inkl. Spesen)</span><span>' + fmtEur(c.tot.einstand) + ' \u20ac</span></div>' +
-      '<div class="dep-srow"><span class="k">Vorauss. KESt ' + (c.kestSatz * 100).toLocaleString("de-DE") + ' % (nicht eingerechnet)</span><span>' + fmtEur(-c.tot.kest) + ' \u20ac</span></div>' +
-      '<div class="dep-srow"><span class="k">Netto nach KESt (zur Info)</span><span class="' + signCls(c.tot.netto) + '">' + fmtEur(c.tot.netto) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Einstand (inkl. Spesen)</span><span>' + fmtEur(c.tot.einstand) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">' + kestLabel + '</span><span>' + fmtEur(-c.tot.kest) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Netto nach KESt</span><span class="' + signCls(c.tot.netto) + '">' + fmtEur(c.tot.netto) + ' \u20ac</span></div>' +
       (c.pending ? '<div class="dep-srow"><span class="k">Ohne Kurs (fehlt in Summe)</span><span>' + c.pending + '</span></div>' : '') +
       '</div></div>';
 
