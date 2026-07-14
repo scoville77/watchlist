@@ -370,7 +370,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v47";
+  var VERSION = "v48";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1072,10 +1072,11 @@
       var netto = ergInkl - kest;
       var tage = Math.max(1, (Date.now() - new Date(p.kaufdatum).getTime()) / 86400000);
       var pctNetto = netto / einstand;
+      var pctGesamt = ergInkl / einstand;
       rows.push({
         p: p, kurs: kurs, einstand: einstand, erloes: erloes, kest: kest,
-        ergInkl: ergInkl, netto: netto, pctNetto: pctNetto,
-        pa: Math.pow(1 + pctNetto, 365 / tage) - 1, tage: tage
+        ergInkl: ergInkl, netto: netto, pctNetto: pctNetto, pctGesamt: pctGesamt,
+        pa: Math.pow(1 + pctGesamt, 365 / tage) - 1, tage: tage
       });
       tot.einstand += einstand; tot.erloes += erloes;
       tot.ergInkl += ergInkl; tot.kest += kest; tot.netto += netto;
@@ -1096,17 +1097,16 @@
     var c = computeDepot();
     var html = "";
 
-    // Gesamt-Karte
+    // Gesamt-Karte: Ergebnis nach Spesen x2, VOR KESt - Steuer nur als Info
     html += '<div class="dep-title">Gesamtgewinn</div>' +
       '<div class="dep-summary">' +
-      '<div class="cap">netto bei Verkauf jetzt \u00b7 Spesen \u00d7 2 \u00b7 KESt ' +
-      (c.kestSatz * 100).toLocaleString("de-DE") + ' % \u00b7 inkl. Dividenden</div>' +
-      '<div class="big ' + signCls(c.tot.netto) + '">' + fmtEur(c.tot.netto) + ' \u20ac</div>' +
+      '<div class="cap">bei Verkauf jetzt \u00b7 nach Spesen \u00d7 2 \u00b7 inkl. Dividenden \u00b7 vor KESt</div>' +
+      '<div class="big ' + signCls(c.tot.ergInkl) + '">' + fmtEur(c.tot.ergInkl) + ' \u20ac</div>' +
       '<div class="rows">' +
       '<div class="dep-srow"><span class="k">Verkaufserl\u00f6s (nach Spesen)</span><span>' + fmtEur(c.tot.erloes) + ' \u20ac</span></div>' +
       '<div class="dep-srow"><span class="k">Einstand gesamt (inkl. Spesen)</span><span>' + fmtEur(c.tot.einstand) + ' \u20ac</span></div>' +
-      '<div class="dep-srow"><span class="k">Ergebnis inkl. Dividenden</span><span class="' + signCls(c.tot.ergInkl) + '">' + fmtEur(c.tot.ergInkl) + ' \u20ac</span></div>' +
-      '<div class="dep-srow"><span class="k">Vorauss. KESt</span><span>' + fmtEur(-c.tot.kest) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Vorauss. KESt ' + (c.kestSatz * 100).toLocaleString("de-DE") + ' % (nicht eingerechnet)</span><span>' + fmtEur(-c.tot.kest) + ' \u20ac</span></div>' +
+      '<div class="dep-srow"><span class="k">Netto nach KESt (zur Info)</span><span class="' + signCls(c.tot.netto) + '">' + fmtEur(c.tot.netto) + ' \u20ac</span></div>' +
       (c.pending ? '<div class="dep-srow"><span class="k">Ohne Kurs (fehlt in Summe)</span><span>' + c.pending + '</span></div>' : '') +
       '</div></div>';
 
@@ -1120,9 +1120,9 @@
     });
     order.forEach(function (g) {
       var rows = groups[g];
-      var sub = rows.reduce(function (s, r) { return s + (r.pending ? 0 : r.netto); }, 0);
+      var sub = rows.reduce(function (s, r) { return s + (r.pending ? 0 : r.ergInkl); }, 0);
       html += '<div class="dep-group"><span>' + g + '</span><span class="' + signCls(sub) + '">' + fmtEur(sub) + ' \u20ac</span></div>';
-      rows.sort(function (a, b) { return (b.pending ? -1e18 : b.netto) - (a.pending ? -1e18 : a.netto); });
+      rows.sort(function (a, b) { return (b.pending ? -1e18 : b.ergInkl) - (a.pending ? -1e18 : a.ergInkl); });
       rows.forEach(function (r) {
         var p = r.p;
         if (r.pending) {
@@ -1134,8 +1134,8 @@
           var paTeil = r.tage >= 180 ? ' \u00b7 ' + fmtPct(r.pa) + ' p.a.' : '';
           html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
             '<div class="s">Wert ' + fmtEur0(p.stueck * r.kurs) + ' \u20ac</div></div>' +
-            '<div class="r"><div class="net ' + signCls(r.netto) + '">' + fmtEur(r.netto) + ' \u20ac</div>' +
-            '<div class="sub">' + fmtPct(r.pctNetto) + paTeil + ' \u00b7 KESt ' + fmtEur(-r.kest) + '</div></div></div>';
+            '<div class="r"><div class="net ' + signCls(r.ergInkl) + '">' + fmtEur(r.ergInkl) + ' \u20ac</div>' +
+            '<div class="sub">' + fmtPct(r.pctGesamt) + paTeil + ' \u00b7 KESt ' + fmtEur(-r.kest) + '</div></div></div>';
         }
       });
     });
