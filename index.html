@@ -371,7 +371,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v50";
+  var VERSION = "v51";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -390,7 +390,8 @@
     "18MF.DE": "USA 2X LEV",
     "VVSM.DE": "HALBLEITER",
     "DE000LS9UTF2": "WF GLOBAL",
-    "DE000LS9UK98": "WF SZEW"
+    "DE000LS9UK98": "WF SZEW",
+    "GOLDOZ": "GOLD OZ"
   };
 
   // Vom Nutzer vergebene Namen (überschreiben die Standards)
@@ -669,7 +670,21 @@
   }
 
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
+  var OZ_GRAMM = 31.1034768; // Feinunze in Gramm (Philharmoniker = 1 oz)
   function fetchQuote(sym) {
+    // Synthetisch: Goldunze in EUR = Xetra-Gold (EUR/Gramm) x 31,1035
+    if (sym === "GOLDOZ") {
+      return fetchQuoteYahoo("4GLD.DE").then(function (q) {
+        if (q.ok) {
+          q.symbol = "GOLDOZ";
+          q.price = q.price * OZ_GRAMM;
+          q.name = "Goldunze (via Xetra-Gold \u00d7 31,1035)";
+        } else {
+          q.symbol = "GOLDOZ";
+        }
+        return q;
+      });
+    }
     if (isIsin(sym)) return fetchQuoteLS(sym);
     var y = fetchQuoteYahoo(sym);
     if (inOffHours() && AH_ISIN[sym]) {
@@ -1070,7 +1085,7 @@
       var einstand = p.stueck * p.kaufkurs + p.spesen;
       var erloes = p.stueck * kurs - p.spesen;
       var ergKurs = erloes - einstand;
-      var kest = kestSatz * p.stueck * (kurs - p.kaufkurs);
+      var kest = p.kestfrei ? 0 : kestSatz * p.stueck * (kurs - p.kaufkurs);
       var ergInkl = ergKurs + (p.dividenden || 0);
       var netto = ergInkl - kest;
       var tage = Math.max(1, (Date.now() - new Date(p.kaufdatum).getTime()) / 86400000);
