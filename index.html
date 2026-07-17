@@ -199,6 +199,11 @@
   .dep-card .t.wrap { white-space: normal; line-height: 1.35; font-size: 13.5px; }
   .news-meta { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
   .news-tag { color: #4da3ff; font-weight: 800; }
+  .link-danger {
+    display: block; width: 100%; background: none; border: none;
+    color: #ff6b5e; font-size: 13px; margin-top: 18px; text-align: center;
+    cursor: pointer; padding: 8px;
+  }
   #depotImport textarea {
     width: 100%; min-height: 130px; border-radius: 12px;
     border: 1px solid var(--line); background: var(--panel); color: var(--text);
@@ -325,13 +330,12 @@
     <p style="color:var(--muted);font-size:13px;line-height:1.5;margin:6px 2px 10px">
       Depot-Daten einfügen (bleiben nur auf diesem Gerät gespeichert):
     </p>
+    <button class="btn" id="pasteImportBtn" style="margin-bottom:10px">Aus Zwischenablage einfügen</button>
     <textarea id="importArea" placeholder='{"kest":0.275,"positionen":[...]}' autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
-    <button class="btn" id="pasteImportBtn" style="margin-top:10px">Aus Zwischenablage einfügen</button>
-    <button class="btn secondary" id="clearImportBtn" style="margin-top:10px">Feld leeren</button>
     <button class="btn secondary" id="importBtn" style="margin-top:10px">Importieren</button>
+    <button class="link-danger" id="deleteDataBtn" style="display:none">Alle Depot-Daten löschen</button>
   </div>
-  <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
-  <button class="btn danger" id="deleteDataBtn" style="display:none">Depot-Daten löschen</button>
+  <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ändern</button>
   <div id="status2"></div>
 </div>
 <!-- Seite 4: News zu den eigenen Werten -->
@@ -374,7 +378,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v56";
+  var VERSION = "v57";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1043,6 +1047,7 @@
   var depotImport = document.getElementById("depotImport");
   var editDataBtn = document.getElementById("editDataBtn");
   var deleteDataBtn = document.getElementById("deleteDataBtn");
+  var importOpen = false; // Import-Panel bleibt offen, bis importiert/abgebrochen
 
   function fmtEur(x) {
     if (Math.abs(x) < 0.005) x = 0; // verhindert "-0,00"
@@ -1116,9 +1121,11 @@
       deleteDataBtn.style.display = "none";
       return;
     }
-    depotImport.style.display = "none";
-    editDataBtn.style.display = "block";
-    deleteDataBtn.style.display = "block";
+    // Bei vorhandenen Daten: Panel nur zeigen, wenn bewusst geoeffnet -
+    // und dann auch offen lassen (Ticker wuerde es sonst wieder schliessen)
+    depotImport.style.display = importOpen ? "block" : "none";
+    editDataBtn.style.display = importOpen ? "none" : "block";
+    deleteDataBtn.style.display = importOpen ? "block" : "none";
     var c = computeDepot();
     var html = "";
 
@@ -1317,16 +1324,13 @@
   }, { passive: true });
 
   // Import
-  document.getElementById("clearImportBtn").addEventListener("click", function () {
-    var area = document.getElementById("importArea");
-    area.value = "";
-    area.focus();
-  });
+
   function tryImport(text) {
     var d = JSON.parse(text);
     if (!d || !Array.isArray(d.positionen) || !d.positionen.length) throw new Error("leer");
     storeSet("depotData", JSON.stringify(d));
     document.getElementById("importArea").value = "";
+    importOpen = false;
     renderDepot();
     refresh();
   }
@@ -1362,13 +1366,15 @@
     });
   });
   deleteDataBtn.addEventListener("click", function () {
-    if (!confirm("Depot-Daten wirklich komplett l\u00f6schen? Danach kannst du frisch importieren.")) return;
+    if (!confirm("Depot-Daten wirklich komplett l\u00f6schen?")) return;
     storeSet("depotData", "");
+    importOpen = false;
     renderDepot();
   });
   editDataBtn.addEventListener("click", function () {
-    depotImport.style.display = "block";
-    document.getElementById("importArea").value = storeGet("depotData") || "";
+    importOpen = true;
+    document.getElementById("importArea").value = "";
+    renderDepot();
   });
 
   // ---- Pull-to-Refresh (Runterziehen am oberen Rand) ----
