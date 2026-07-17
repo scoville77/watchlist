@@ -330,6 +330,7 @@
     <button class="btn" id="importBtn" style="margin-top:10px">Importieren</button>
   </div>
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
+  <button class="btn danger" id="deleteDataBtn" style="display:none">Depot-Daten l\u00f6schen</button>
   <div id="status2"></div>
 </div>
 <!-- Seite 4: News zu den eigenen Werten -->
@@ -372,7 +373,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v52";
+  var VERSION = "v53";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1040,6 +1041,7 @@
   var depotContent = document.getElementById("depotContent");
   var depotImport = document.getElementById("depotImport");
   var editDataBtn = document.getElementById("editDataBtn");
+  var deleteDataBtn = document.getElementById("deleteDataBtn");
 
   function fmtEur(x) {
     return x.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1109,10 +1111,12 @@
       depotContent.innerHTML = "";
       depotImport.style.display = "block";
       editDataBtn.style.display = "none";
+      deleteDataBtn.style.display = "none";
       return;
     }
     depotImport.style.display = "none";
     editDataBtn.style.display = "block";
+    deleteDataBtn.style.display = "block";
     var c = computeDepot();
     var html = "";
 
@@ -1327,6 +1331,11 @@
     } catch (e) {
       alert("Konnte die Daten nicht lesen - bitte den Block exakt einf\u00fcgen.");
     }
+  });
+  deleteDataBtn.addEventListener("click", function () {
+    if (!confirm("Depot-Daten wirklich komplett l\u00f6schen? Danach kannst du frisch importieren.")) return;
+    storeSet("depotData", "");
+    renderDepot();
   });
   editDataBtn.addEventListener("click", function () {
     depotImport.style.display = "block";
