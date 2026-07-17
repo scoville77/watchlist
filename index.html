@@ -325,7 +325,8 @@
     <p style="color:var(--muted);font-size:13px;line-height:1.5;margin:6px 2px 10px">
       Depot-Daten einfügen (bleiben nur auf diesem Gerät gespeichert):
     </p>
-    <textarea id="importArea" placeholder='{"kest":0.275,"positionen":[...]}'></textarea>
+    <textarea id="importArea" placeholder='{"kest":0.275,"positionen":[...]}' autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+    <button class="btn secondary" id="clearImportBtn" style="margin-top:10px">Feld leeren</button>
     <button class="btn" id="importBtn" style="margin-top:10px">Importieren</button>
   </div>
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
@@ -371,7 +372,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v51";
+  var VERSION = "v52";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1310,6 +1311,11 @@
   }, { passive: true });
 
   // Import
+  document.getElementById("clearImportBtn").addEventListener("click", function () {
+    var area = document.getElementById("importArea");
+    area.value = "";
+    area.focus();
+  });
   document.getElementById("importBtn").addEventListener("click", function () {
     try {
       var d = JSON.parse(document.getElementById("importArea").value);
