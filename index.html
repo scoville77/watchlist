@@ -326,7 +326,7 @@
       Depot-Daten einfügen (bleiben nur auf diesem Gerät gespeichert):
     </p>
     <textarea id="importArea" placeholder='{"kest":0.275,"positionen":[...]}' autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
-    <button class="btn" id="pasteImportBtn" style="margin-top:10px">Aus Zwischenablage einf\u00fcgen</button>
+    <button class="btn" id="pasteImportBtn" style="margin-top:10px">Aus Zwischenablage einfügen</button>
     <button class="btn secondary" id="clearImportBtn" style="margin-top:10px">Feld leeren</button>
     <button class="btn secondary" id="importBtn" style="margin-top:10px">Importieren</button>
   </div>
@@ -374,7 +374,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v54";
+  var VERSION = "v55";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1336,6 +1336,12 @@
       alert("Konnte die Daten nicht lesen - bitte den Block exakt einf\u00fcgen.");
     }
   });
+  // Klassisches Einfuegen ins Feld: automatisch importieren, wenn lesbar
+  document.getElementById("importArea").addEventListener("paste", function () {
+    setTimeout(function () {
+      try { tryImport(document.getElementById("importArea").value); } catch (e) {}
+    }, 60);
+  });
   document.getElementById("pasteImportBtn").addEventListener("click", function () {
     if (!navigator.clipboard || !navigator.clipboard.readText) {
       alert("Zwischenablage-Zugriff nicht verf\u00fcgbar - bitte ins Feld tippen, gedr\u00fcckt halten und Einf\u00fcgen w\u00e4hlen.");
@@ -1351,7 +1357,7 @@
         alert("Eingef\u00fcgt, aber nicht lesbar - bitte pr\u00fcfen, ob der komplette Block kopiert wurde.");
       }
     }).catch(function () {
-      alert("Zugriff auf die Zwischenablage wurde nicht erlaubt.");
+      alert("Zwischenablage blockiert (passiert v.a. im eingebetteten Browser). Bitte die App vom Homescreen öffnen - oder ins Feld tippen, gedrückt halten und Einfügen wählen; importiert wird dann automatisch.");
     });
   });
   deleteDataBtn.addEventListener("click", function () {
