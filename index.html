@@ -326,8 +326,9 @@
       Depot-Daten einfügen (bleiben nur auf diesem Gerät gespeichert):
     </p>
     <textarea id="importArea" placeholder='{"kest":0.275,"positionen":[...]}' autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+    <button class="btn" id="pasteImportBtn" style="margin-top:10px">Aus Zwischenablage einf\u00fcgen</button>
     <button class="btn secondary" id="clearImportBtn" style="margin-top:10px">Feld leeren</button>
-    <button class="btn" id="importBtn" style="margin-top:10px">Importieren</button>
+    <button class="btn secondary" id="importBtn" style="margin-top:10px">Importieren</button>
   </div>
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
   <button class="btn danger" id="deleteDataBtn" style="display:none">Depot-Daten l\u00f6schen</button>
@@ -373,7 +374,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v53";
+  var VERSION = "v54";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1320,17 +1321,38 @@
     area.value = "";
     area.focus();
   });
+  function tryImport(text) {
+    var d = JSON.parse(text);
+    if (!d || !Array.isArray(d.positionen) || !d.positionen.length) throw new Error("leer");
+    storeSet("depotData", JSON.stringify(d));
+    document.getElementById("importArea").value = "";
+    renderDepot();
+    refresh();
+  }
   document.getElementById("importBtn").addEventListener("click", function () {
     try {
-      var d = JSON.parse(document.getElementById("importArea").value);
-      if (!d || !Array.isArray(d.positionen) || !d.positionen.length) throw new Error("leer");
-      storeSet("depotData", JSON.stringify(d));
-      document.getElementById("importArea").value = "";
-      renderDepot();
-      refresh();
+      tryImport(document.getElementById("importArea").value);
     } catch (e) {
       alert("Konnte die Daten nicht lesen - bitte den Block exakt einf\u00fcgen.");
     }
+  });
+  document.getElementById("pasteImportBtn").addEventListener("click", function () {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      alert("Zwischenablage-Zugriff nicht verf\u00fcgbar - bitte ins Feld tippen, gedr\u00fcckt halten und Einf\u00fcgen w\u00e4hlen.");
+      return;
+    }
+    navigator.clipboard.readText().then(function (t) {
+      t = (t || "").trim();
+      if (!t) { alert("Zwischenablage ist leer - bitte zuerst den Datenblock kopieren."); return; }
+      try {
+        tryImport(t); // direkt importieren, wenn es passt
+      } catch (e) {
+        document.getElementById("importArea").value = t; // sonst nur einfuegen
+        alert("Eingef\u00fcgt, aber nicht lesbar - bitte pr\u00fcfen, ob der komplette Block kopiert wurde.");
+      }
+    }).catch(function () {
+      alert("Zugriff auf die Zwischenablage wurde nicht erlaubt.");
+    });
   });
   deleteDataBtn.addEventListener("click", function () {
     if (!confirm("Depot-Daten wirklich komplett l\u00f6schen? Danach kannst du frisch importieren.")) return;
