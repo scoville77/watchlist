@@ -331,7 +331,7 @@
     <button class="btn secondary" id="importBtn" style="margin-top:10px">Importieren</button>
   </div>
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ersetzen</button>
-  <button class="btn danger" id="deleteDataBtn" style="display:none">Depot-Daten l\u00f6schen</button>
+  <button class="btn danger" id="deleteDataBtn" style="display:none">Depot-Daten löschen</button>
   <div id="status2"></div>
 </div>
 <!-- Seite 4: News zu den eigenen Werten -->
@@ -374,7 +374,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v55";
+  var VERSION = "v56";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1045,6 +1045,7 @@
   var deleteDataBtn = document.getElementById("deleteDataBtn");
 
   function fmtEur(x) {
+    if (Math.abs(x) < 0.005) x = 0; // verhindert "-0,00"
     return x.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function fmtEur0(x) {
