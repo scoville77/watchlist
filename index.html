@@ -370,6 +370,7 @@
   <div class="detail-row"><span class="k">Veränderung</span><span class="v" id="detailPct">–</span></div>
   <div class="detail-row"><span class="k">Börse / Quelle</span><span class="v" id="detailExchange">–</span></div>
   <div class="detail-row" id="detailAhRow" style="display:none"><span class="k" id="detailAhLabel">Nachbörslich (L&amp;S)</span><span class="v" id="detailAh">–</span></div>
+  <div class="detail-row" id="detailApaRow" style="display:none"><span class="k">APA-Ankauf (ORF 177)</span><span class="v" id="detailApa">–</span></div>
   <div class="detail-row"><span class="k">Kurszeit</span><span class="v" id="detailTime">–</span></div>
   <div class="detail-row"><span class="k">Währung</span><span class="v" id="detailCurrency">–</span></div>
   <input class="field" id="renameInput" placeholder="Kachelname" autocorrect="off" style="margin-top:14px">
@@ -381,7 +382,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v60";
+  var VERSION = "v61";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -619,6 +620,19 @@
     } else {
       ahRow.style.display = "none";
     }
+    var apaRow = document.getElementById("detailApaRow");
+    if (sym === "GOLDOZ") {
+      apaRow.style.display = "flex";
+      document.getElementById("detailApa").textContent = "\u2026";
+      fetchApaGold().then(function (a) {
+        document.getElementById("detailApa").textContent =
+          a.ankauf + " (" + a.stand + ")";
+      }).catch(function () {
+        document.getElementById("detailApa").textContent = "nicht erreichbar";
+      });
+    } else {
+      apaRow.style.display = "none";
+    }
     document.getElementById("renameInput").value = labelFor(sym);
     detailBackdrop.classList.add("open");
     detailSheetEl.classList.add("open");
@@ -726,6 +740,40 @@
         return r.json();
       })
       .catch(function () { return proxiedJson(url, proxyIndex + 1); });
+  }
+
+  function proxiedText(url, proxyIndex) {
+    proxyIndex = proxyIndex || 0;
+    if (proxyIndex >= PROXIES.length) return Promise.reject(new Error("allproxiesfailed"));
+    return fetchWithTimeout(PROXIES[proxyIndex](url))
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.text();
+      })
+      .catch(function () { return proxiedText(url, proxyIndex + 1); });
+  }
+
+  // APA-Referenzkurs Philharmoniker 1 oz aus dem ORF-Teletext (Seite 177)
+  var apaGoldCache = null;
+  function fetchApaGold() {
+    if (apaGoldCache && Date.now() - apaGoldCache.ts < 30 * 60 * 1000) {
+      return Promise.resolve(apaGoldCache);
+    }
+    var url = "https://text.orf.at/channel/orf2/page/177/1.html?_cb=" + Date.now();
+    return proxiedText(url).then(function (html) {
+      var t = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+      // Teletext trennt manche Zahlen (Seitenlinks): "895 ,00" wieder zusammenfuegen
+      t = t.replace(/(\d)\s+,\s*(\d)/g, "$1,$2");
+      var m = t.match(/1 Unze\s+(\d{3,5},\d{2})\s+(\d{3,5},\d{2})/);
+      var d = t.match(/(\d{2}\.\d{2}\.),\s*(\d{2}:\d{2})h/);
+      if (!m) throw new Error("apaparse");
+      apaGoldCache = {
+        ankauf: m[1], verkauf: m[2],
+        stand: d ? (d[1] + " " + d[2]) : "",
+        ts: Date.now()
+      };
+      return apaGoldCache;
+    });
   }
 
   function lsInstrumentId(isin) {
