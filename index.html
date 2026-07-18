@@ -95,6 +95,7 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap; max-width: 100%;
   }
+  .tile .ah.ph { visibility: hidden; }
   .tile .ah.up { color: #6fffa5; }
   .tile .ah.down { color: #ffb8ad; }
   .tile {
@@ -567,7 +568,7 @@
         }
         d.style.background = tileColor(q.pct);
         d.style.color = textColor(q.pct);
-        var ahHtml = "";
+        var ahHtml = '<div class="ah ph">&nbsp;</div>';
         if (q.ahPct != null && Math.abs(q.ahPct) >= 0.0005) {
           var ahLabel = inPreMarket() ? "vorb. " : "nachb. ";
           ahHtml = '<div class="ah ' + (q.ahPct >= 0 ? "up" : "down") + '">' + ahLabel +
