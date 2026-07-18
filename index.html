@@ -378,7 +378,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v58";
+  var VERSION = "v59";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -678,7 +678,7 @@
 
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
   var OZ_GRAMM = 31.1034768; // Feinunze in Gramm (Philharmoniker = 1 oz)
-  var MUENZ_AUFGELD = 1.015;  // ~1,5% Aufgeld: Muenz-Ankaufskurse liegen ueber dem reinen Metallwert
+  var MUENZ_AUFGELD = 1.0;    // Bank-Austria-Ankauf zahlt kein Aufgeld: Ankaufskurs = reiner Metallwert
   function fetchQuote(sym) {
     // Synthetisch: Muenzwert = Xetra-Gold (EUR/Gramm) x 31,1035 x Aufgeld
     if (sym === "GOLDOZ") {
@@ -686,7 +686,7 @@
         if (q.ok) {
           q.symbol = "GOLDOZ";
           q.price = q.price * OZ_GRAMM * MUENZ_AUFGELD;
-          q.name = "Goldunze, Ankaufsniveau (Xetra-Gold \u00d7 31,1035 \u00d7 1,015)";
+          q.name = "Goldunze, Bank-Ankaufsniveau (Xetra-Gold \u00d7 31,1035)";
         } else {
           q.symbol = "GOLDOZ";
         }
