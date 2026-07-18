@@ -382,7 +382,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v62";
+  var VERSION = "v63";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -698,22 +698,37 @@
 
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
   var OZ_GRAMM = 31.1034768; // Feinunze in Gramm (Philharmoniker = 1 oz)
-  // Kalibriert auf die APA-Ankaufsschiene (ORF 177): am 17.07.26 lag der
-  // APA-Ankauf 0,65% unter dem Xetra-Gold-Metallwert. So zeigt die App live,
-  // was der Schalter-Verkauf bringen wuerde. Bei Drift: Faktor nachjustieren.
-  var MUENZ_AUFGELD = 0.9935;
+  // Automatische Kalibrierung auf die APA-Ankaufsschiene (ORF 177):
+  // Faktor = APA-Ankauf / Metallwert, zeitlich korrekt gepaart
+  // (heutiges 16:00-Fixing -> aktueller Kurs, aelteres Fixing -> Vortagesschluss).
+  // Der letzte gute Faktor wird gespeichert; Notanker 0,9935.
+  function goldFaktor() {
+    var f = parseFloat(storeGet("goldCalib") || "");
+    return (f > 0.96 && f < 1.02) ? f : 0.9935;
+  }
   function fetchQuote(sym) {
-    // Synthetisch: Muenzwert = Xetra-Gold (EUR/Gramm) x 31,1035 x Aufgeld
+    // Synthetisch: Muenzwert = Xetra-Gold (EUR/Gramm) x 31,1035 x APA-Faktor
     if (sym === "GOLDOZ") {
       return fetchQuoteYahoo("4GLD.DE").then(function (q) {
-        if (q.ok) {
+        if (!q.ok) { q.symbol = "GOLDOZ"; return q; }
+        var metallOz = q.price * OZ_GRAMM;
+        return fetchApaGold().catch(function () { return null; }).then(function (a) {
+          if (a && a.ankauf) {
+            var apa = parseFloat(a.ankauf.replace(/\./g, "").replace(",", "."));
+            // Fixing von heute? Dann gegen den Live-Kurs eichen, sonst gegen Vortagesschluss
+            var d = new Date();
+            var heute = ("0" + d.getDate()).slice(-2) + "." + ("0" + (d.getMonth() + 1)).slice(-2) + ".";
+            var refOz = (a.stand && a.stand.indexOf(heute) === 0)
+              ? metallOz
+              : metallOz / (1 + q.pct / 100);
+            var f = apa / refOz;
+            if (f > 0.96 && f < 1.02) storeSet("goldCalib", String(f));
+          }
           q.symbol = "GOLDOZ";
-          q.price = q.price * OZ_GRAMM * MUENZ_AUFGELD;
-          q.name = "Goldunze, APA-Ankaufsniveau (Xetra-Gold \u00d7 31,1035 \u2212 0,65%)";
-        } else {
-          q.symbol = "GOLDOZ";
-        }
-        return q;
+          q.price = metallOz * goldFaktor();
+          q.name = "Goldunze, APA-Ankaufsniveau (auto-kalibriert)";
+          return q;
+        });
       });
     }
     if (isIsin(sym)) return fetchQuoteLS(sym);
