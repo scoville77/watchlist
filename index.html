@@ -108,6 +108,9 @@
     position: absolute; top: 0; left: 0; right: 0; height: 12px;
     background: #4da3ff;
   }
+  .tile.marked.gold::before {
+    background: linear-gradient(90deg, #b8860b, #ffd700, #b8860b);
+  }
 
   /* Kräftiges Blinken der ganzen Kachel bei Kursbewegung seit dem letzten Update */
   .tile.flash-up, .tile.flash-down { position: relative; overflow: hidden; }
@@ -378,12 +381,14 @@
 (function () {
   "use strict";
 
-  var VERSION = "v59";
+  var VERSION = "v60";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
+  var MARKED_GOLD = ["GOLDOZ"]; // goldener Kopfbalken + Stern
   function labelWithMark(sym) {
-    return (MARKED.indexOf(sym) !== -1 ? "★ " : "") + labelFor(sym);
+    var star = MARKED.indexOf(sym) !== -1 || MARKED_GOLD.indexOf(sym) !== -1;
+    return (star ? "★ " : "") + labelFor(sym);
   }
 
   // Standard-Kurznamen für die Kacheln
@@ -546,6 +551,7 @@
       if (q.ok) {
         d.className = "tile";
         if (MARKED.indexOf(q.symbol) !== -1) d.className += " marked";
+        if (MARKED_GOLD.indexOf(q.symbol) !== -1) d.className += " marked gold";
         // Aufleuchten, wenn sich der Kurs seit dem letzten Update bewegt hat
         if (previous && previous.ok) {
           if (q.price > previous.price) d.className += " flash-up";
