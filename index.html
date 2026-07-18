@@ -82,8 +82,15 @@
   .tile .pct { font-size: 19px; font-weight: 900; letter-spacing: -0.02em; }
   .tile .price { font-size: 11px; opacity: 0.85; }
   .tile.pending { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  /* Fester Platz fuer die Pille - auf jeder Kachel gleich hoch,
+     damit Name/Prozent/Kurs ueberall auf identischer Hoehe sitzen */
+  .tile .ah-slot {
+    height: 21px; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+    max-width: 100%;
+  }
   .tile .ah {
-    font-size: 10px; font-weight: 800; margin-top: 3px;
+    font-size: 10px; font-weight: 800;
     background: rgba(10,12,16,0.72); border-radius: 8px; padding: 2px 7px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap; max-width: 100%;
@@ -382,7 +389,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v63";
+  var VERSION = "v64";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -534,7 +541,7 @@
     getSymbols().forEach(function (sym) {
       var d = document.createElement("div");
       d.className = "tile pending";
-      d.innerHTML = '<div class="sym"></div><div class="pct">…</div>';
+      d.innerHTML = '<div class="sym"></div><div class="pct">…</div><div class="price">&nbsp;</div><div class="ah-slot"></div>';
       d.querySelector(".sym").textContent = labelWithMark(sym);
       attachLongPress(d, sym);
       grid.appendChild(d);
@@ -569,11 +576,12 @@
         d.innerHTML =
           '<div class="sym"></div>' +
           '<div class="pct">' + (q.pct >= 0 ? "+" : "") + q.pct.toFixed(2).replace(".", ",") + '%</div>' +
-          '<div class="price">' + q.price.toFixed(2).replace(".", ",") + '</div>' + ahHtml;
+          '<div class="price">' + q.price.toFixed(2).replace(".", ",") + '</div>' +
+          '<div class="ah-slot">' + ahHtml + '</div>';
       } else {
         failures++;
         d.className = "tile pending";
-        d.innerHTML = '<div class="sym"></div><div class="pct">–</div><div class="price">keine Daten</div>';
+        d.innerHTML = '<div class="sym"></div><div class="pct">–</div><div class="price">keine Daten</div><div class="ah-slot"></div>';
       }
       d.querySelector(".sym").textContent = labelWithMark(q.symbol);
       attachLongPress(d, q.symbol);
