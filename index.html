@@ -382,7 +382,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v61";
+  var VERSION = "v62";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -698,7 +698,10 @@
 
   // ---- Verteiler: ISINs -> Lang & Schwarz, alles andere -> Yahoo ----
   var OZ_GRAMM = 31.1034768; // Feinunze in Gramm (Philharmoniker = 1 oz)
-  var MUENZ_AUFGELD = 1.0;    // Bank-Austria-Ankauf zahlt kein Aufgeld: Ankaufskurs = reiner Metallwert
+  // Kalibriert auf die APA-Ankaufsschiene (ORF 177): am 17.07.26 lag der
+  // APA-Ankauf 0,65% unter dem Xetra-Gold-Metallwert. So zeigt die App live,
+  // was der Schalter-Verkauf bringen wuerde. Bei Drift: Faktor nachjustieren.
+  var MUENZ_AUFGELD = 0.9935;
   function fetchQuote(sym) {
     // Synthetisch: Muenzwert = Xetra-Gold (EUR/Gramm) x 31,1035 x Aufgeld
     if (sym === "GOLDOZ") {
@@ -706,7 +709,7 @@
         if (q.ok) {
           q.symbol = "GOLDOZ";
           q.price = q.price * OZ_GRAMM * MUENZ_AUFGELD;
-          q.name = "Goldunze, Bank-Ankaufsniveau (Xetra-Gold \u00d7 31,1035)";
+          q.name = "Goldunze, APA-Ankaufsniveau (Xetra-Gold \u00d7 31,1035 \u2212 0,65%)";
         } else {
           q.symbol = "GOLDOZ";
         }
