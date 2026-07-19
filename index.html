@@ -82,12 +82,12 @@
   .tile .pct { font-size: 19px; font-weight: 900; letter-spacing: -0.02em; }
   .tile .price { font-size: 11px; opacity: 0.85; }
   .tile.pending { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
-  /* Fester Platz fuer die Pille - auf jeder Kachel gleich hoch,
-     damit Name/Prozent/Kurs ueberall auf identischer Hoehe sitzen */
+  /* Pille schwebt am unteren Kachelrand und verschiebt den Inhalt nicht -
+     Name/Prozent/Kurs bleiben dadurch immer exakt zentriert */
   .tile .ah-slot {
-    height: 21px; margin-top: 2px;
+    position: absolute; left: 8px; right: 8px; bottom: 8px;
     display: flex; align-items: center; justify-content: center;
-    max-width: 100%;
+    pointer-events: none;
   }
   .tile .ah {
     font-size: 10px; font-weight: 800;
@@ -95,10 +95,10 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap; max-width: 100%;
   }
-  .tile .ah.ph { visibility: hidden; }
   .tile .ah.up { color: #6fffa5; }
   .tile .ah.down { color: #ffb8ad; }
   .tile {
+    position: relative;
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none;
   }
@@ -390,7 +390,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v64";
+  var VERSION = "v65";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -568,7 +568,7 @@
         }
         d.style.background = tileColor(q.pct);
         d.style.color = textColor(q.pct);
-        var ahHtml = '<div class="ah ph">&nbsp;</div>';
+        var ahHtml = "";
         if (q.ahPct != null && Math.abs(q.ahPct) >= 0.0005) {
           var ahLabel = inPreMarket() ? "vorb. " : "nachb. ";
           ahHtml = '<div class="ah ' + (q.ahPct >= 0 ? "up" : "down") + '">' + ahLabel +
