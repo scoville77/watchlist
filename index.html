@@ -116,6 +116,9 @@
     position: absolute; top: 0; left: 0; right: 0; height: 12px;
     background: #4da3ff;
   }
+  .tile.marked.light::before {
+    background: #a9d0ff;
+  }
   .tile.marked.gold::before {
     background: linear-gradient(90deg, #b8860b, #ffd700, #b8860b);
   }
@@ -390,11 +393,12 @@
 (function () {
   "use strict";
 
-  var VERSION = "v65";
+  var VERSION = "v66";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
   var MARKED_GOLD = ["GOLDOZ"]; // goldener Kopfbalken + Stern
+  var MARKED_LIGHT = ["IUSN.DE"]; // hellerer Balken: kleinere Kernposition
   function labelWithMark(sym) {
     var star = MARKED.indexOf(sym) !== -1 || MARKED_GOLD.indexOf(sym) !== -1;
     return (star ? "★ " : "") + labelFor(sym);
@@ -559,7 +563,9 @@
       var d = document.createElement("div");
       if (q.ok) {
         d.className = "tile";
-        if (MARKED.indexOf(q.symbol) !== -1) d.className += " marked";
+        if (MARKED.indexOf(q.symbol) !== -1) {
+          d.className += " marked" + (MARKED_LIGHT.indexOf(q.symbol) !== -1 ? " light" : "");
+        }
         if (MARKED_GOLD.indexOf(q.symbol) !== -1) d.className += " marked gold";
         // Aufleuchten, wenn sich der Kurs seit dem letzten Update bewegt hat
         if (previous && previous.ok) {
