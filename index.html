@@ -393,7 +393,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v67";
+  var VERSION = "v68";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -757,8 +757,19 @@
             }
           }
           q.symbol = "GOLDOZ";
+          var rawGram = q.price;
           q.price = metallOz * goldFaktor();
           q.name = "Goldunze, APA-Ankaufsniveau (auto-kalibriert)";
+          // Nachboers-Pille: L&S taxt Xetra-Gold bis 23 Uhr weiter
+          if (inOffHours()) {
+            return fetchQuoteLS("DE000A0S9GB0").then(function (ls) {
+              if (ls.ok && rawGram) {
+                q.ahPct = (ls.price - rawGram) / rawGram;
+                q.ahPrice = ls.price * OZ_GRAMM * goldFaktor();
+              }
+              return q;
+            }).catch(function () { return q; });
+          }
           return q;
         });
       });
