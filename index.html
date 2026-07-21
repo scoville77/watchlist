@@ -393,7 +393,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v66";
+  var VERSION = "v67";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -717,9 +717,20 @@
   // Faktor = APA-Ankauf / Metallwert, zeitlich korrekt gepaart
   // (heutiges 16:00-Fixing -> aktueller Kurs, aelteres Fixing -> Vortagesschluss).
   // Der letzte gute Faktor wird gespeichert; Notanker 0,9935.
+  function goldCalibData() {
+    try {
+      var c = JSON.parse(storeGet("goldCalib") || "null");
+      if (c && c.f > 0.96 && c.f < 1.02) return c;
+    } catch (e) {
+      // Altformat (nackte Zahl) weiterverwenden
+      var f = parseFloat(storeGet("goldCalib") || "");
+      if (f > 0.96 && f < 1.02) return { f: f, stand: "" };
+    }
+    return null;
+  }
   function goldFaktor() {
-    var f = parseFloat(storeGet("goldCalib") || "");
-    return (f > 0.96 && f < 1.02) ? f : 0.9935;
+    var c = goldCalibData();
+    return c ? c.f : 0.9935;
   }
   function fetchQuote(sym) {
     // Synthetisch: Muenzwert = Xetra-Gold (EUR/Gramm) x 31,1035 x APA-Faktor
@@ -729,15 +740,21 @@
         var metallOz = q.price * OZ_GRAMM;
         return fetchApaGold().catch(function () { return null; }).then(function (a) {
           if (a && a.ankauf) {
-            var apa = parseFloat(a.ankauf.replace(/\./g, "").replace(",", "."));
-            // Fixing von heute? Dann gegen den Live-Kurs eichen, sonst gegen Vortagesschluss
-            var d = new Date();
-            var heute = ("0" + d.getDate()).slice(-2) + "." + ("0" + (d.getMonth() + 1)).slice(-2) + ".";
-            var refOz = (a.stand && a.stand.indexOf(heute) === 0)
-              ? metallOz
-              : metallOz / (1 + q.pct / 100);
-            var f = apa / refOz;
-            if (f > 0.96 && f < 1.02) storeSet("goldCalib", String(f));
+            // Nur EINMAL pro Fixing eichen - sonst klebt der Kurs am Teletext-Wert
+            var cal = goldCalibData();
+            if (!cal || cal.stand !== a.stand) {
+              var apa = parseFloat(a.ankauf.replace(/\./g, "").replace(",", "."));
+              // Fixing von heute? Dann gegen den Live-Kurs eichen, sonst gegen Vortagesschluss
+              var d = new Date();
+              var heute = ("0" + d.getDate()).slice(-2) + "." + ("0" + (d.getMonth() + 1)).slice(-2) + ".";
+              var refOz = (a.stand && a.stand.indexOf(heute) === 0)
+                ? metallOz
+                : metallOz / (1 + q.pct / 100);
+              var f = apa / refOz;
+              if (f > 0.96 && f < 1.02) {
+                storeSet("goldCalib", JSON.stringify({ f: f, stand: a.stand }));
+              }
+            }
           }
           q.symbol = "GOLDOZ";
           q.price = metallOz * goldFaktor();
