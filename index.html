@@ -171,6 +171,16 @@
   #status, #status2, #status3 { text-align: center; color: var(--muted); font-size: 12px; padding: 14px 0 4px; }
 
   /* ---- Depot-Seite ---- */
+  .hist-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 10px 14px 8px; margin-bottom: 12px;
+  }
+  .hist-card .hc-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; color: var(--muted); margin-bottom: 6px;
+  }
+  .hist-card .hc-delta { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .hist-card svg { display: block; width: 100%; height: 34px; }
   .dep-title {
     font-size: 22px; font-weight: 900; letter-spacing: -0.02em;
     margin: 4px 2px 10px;
@@ -350,6 +360,7 @@
     <button class="link-danger" id="deleteDataBtn" style="display:none">Alle Depot-Daten löschen</button>
   </div>
   <button class="btn secondary" id="editDataBtn" style="display:none">Depot-Daten ändern</button>
+  <button class="btn secondary" id="backupBtn">Backup kopieren</button>
   <div id="status2"></div>
 </div>
 <!-- Seite 4: News zu den eigenen Werten -->
@@ -393,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v68";
+  var VERSION = "v70";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -449,6 +460,14 @@
     function (url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); },
     function (url) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url); }
   ];
+  // Eigener Cloudflare-Worker (per Import konfigurierbar) laeuft zuerst:
+  // schneller, stabiler, privat. Gratis-Proxys bleiben als Rueckfall.
+  function activeProxies() {
+    var w = (storeGet("workerProxy") || "").trim();
+    if (!w) return PROXIES;
+    var mk = function (url) { return w + encodeURIComponent(url); };
+    return [mk].concat(PROXIES);
+  }
 
   // fetch mit hartem Zeitlimit, damit ein hängender Proxy nicht alles blockiert
   function fetchWithTimeout(url, ms) {
@@ -794,8 +813,9 @@
   // Schritt 2: Chartdaten mit Intraday-Kurs + Tagesschlusskursen
   function proxiedJson(url, proxyIndex) {
     proxyIndex = proxyIndex || 0;
-    if (proxyIndex >= PROXIES.length) return Promise.reject(new Error("allproxiesfailed"));
-    return fetchWithTimeout(PROXIES[proxyIndex](url))
+    var P = activeProxies();
+    if (proxyIndex >= P.length) return Promise.reject(new Error("allproxiesfailed"));
+    return fetchWithTimeout(P[proxyIndex](url))
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
         return r.json();
@@ -805,8 +825,9 @@
 
   function proxiedText(url, proxyIndex) {
     proxyIndex = proxyIndex || 0;
-    if (proxyIndex >= PROXIES.length) return Promise.reject(new Error("allproxiesfailed"));
-    return fetchWithTimeout(PROXIES[proxyIndex](url))
+    var P = activeProxies();
+    if (proxyIndex >= P.length) return Promise.reject(new Error("allproxiesfailed"));
+    return fetchWithTimeout(P[proxyIndex](url))
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
         return r.text();
@@ -1301,6 +1322,43 @@
 
   // ---- Seite 3: Tagesgewinn (live vs. Schlusskurs Vortag) ----
   var dayContent = document.getElementById("dayContent");
+  // Taeglicher Depotwert-Verlauf (letzter Stand des Tages, max. 120 Tage)
+  function histRecord(value) {
+    try {
+      var m = JSON.parse(storeGet("histDepot") || "{}");
+      var d = new Date();
+      var key = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+      m[key] = Math.round(value);
+      var keys = Object.keys(m).sort();
+      while (keys.length > 120) { delete m[keys.shift()]; }
+      storeSet("histDepot", JSON.stringify(m));
+    } catch (e) {}
+  }
+  function histSparkline() {
+    var m;
+    try { m = JSON.parse(storeGet("histDepot") || "{}"); } catch (e) { return ""; }
+    var keys = Object.keys(m).sort();
+    if (keys.length < 2) return "";
+    keys = keys.slice(-30);
+    var vals = keys.map(function (k) { return m[k]; });
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    var span = Math.max(1, max - min);
+    var pts = vals.map(function (v, i) {
+      var x = (i / (vals.length - 1)) * 100;
+      var y = 30 - ((v - min) / span) * 26 + 2;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+    var first = vals[0], last = vals[vals.length - 1];
+    var delta = last - first;
+    var cls = delta >= 0 ? "pos" : "neg";
+    return '<div class="hist-card">' +
+      '<div class="hc-top"><span>Depotwert-Verlauf (' + keys.length + ' Tage)</span>' +
+      '<span class="hc-delta ' + cls + '">' + (delta >= 0 ? "+" : "") + fmtEur0(delta) + ' \u20ac</span></div>' +
+      '<svg viewBox="0 0 100 34" preserveAspectRatio="none">' +
+      '<polyline fill="none" stroke="' + (delta >= 0 ? "#35d073" : "#ff6b5e") + '" stroke-width="1.6" points="' + pts + '"/>' +
+      '</svg></div>';
+  }
+
   function renderDay() {
     var data = getDepotData();
     if (!data) {
@@ -1319,8 +1377,9 @@
       tot.gain += gain; tot.now += p.stueck * q.price; tot.prev += p.stueck * prev;
     });
     var totPct = tot.prev ? (tot.now / tot.prev - 1) : 0;
+    if (!pending && tot.now > 0) histRecord(tot.now);
 
-    var html = '<div class="dep-title">Tagesgewinn</div>' +
+    var html = '<div class="dep-title">Tagesgewinn</div>' + histSparkline() +
       '<div class="dep-summary">' +
       '<div class="cap">heute \u00b7 live vs. Schlusskurs Vortag \u00b7 brutto, ohne KESt und Spesen</div>' +
       '<div class="big ' + signCls(tot.gain) + '">' + fmtEur(tot.gain) + ' \u20ac</div>' +
@@ -1441,8 +1500,32 @@
 
   // Import
 
+  var BACKUP_KEYS = ["symbols_de", "customLabels", "depotData", "goldCalib", "workerProxy"];
   function tryImport(text) {
     var d = JSON.parse(text);
+    if (d && d.app === "watchlist-backup" && d.data) {
+      // Komplett-Backup wiederherstellen
+      BACKUP_KEYS.forEach(function (k) {
+        if (d.data[k] != null) storeSet(k, d.data[k]);
+      });
+      document.getElementById("importArea").value = "";
+      importOpen = false;
+      renderPending();
+      renderDepot();
+      refresh();
+      alert("Backup wiederhergestellt.");
+      return;
+    }
+    if (d && d.workerProxy && !d.positionen) {
+      // Einstellung: eigener Umleitungsdienst
+      storeSet("workerProxy", String(d.workerProxy));
+      document.getElementById("importArea").value = "";
+      importOpen = false;
+      renderDepot();
+      refresh();
+      alert("Eigener Umleitungsdienst aktiviert.");
+      return;
+    }
     if (!d || !Array.isArray(d.positionen) || !d.positionen.length) throw new Error("leer");
     storeSet("depotData", JSON.stringify(d));
     document.getElementById("importArea").value = "";
@@ -1450,6 +1533,21 @@
     renderDepot();
     refresh();
   }
+  document.getElementById("backupBtn").addEventListener("click", function () {
+    var out = { app: "watchlist-backup", v: 1, datum: new Date().toISOString(), data: {} };
+    BACKUP_KEYS.forEach(function (k) {
+      var v = storeGet(k);
+      if (v != null && v !== "") out.data[k] = v;
+    });
+    var text = JSON.stringify(out);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        alert("Backup in der Zwischenablage - z. B. in eine Notiz einf\u00fcgen und aufheben.");
+      }).catch(function () { prompt("Backup markieren und kopieren:", text); });
+    } else {
+      prompt("Backup markieren und kopieren:", text);
+    }
+  });
   document.getElementById("importBtn").addEventListener("click", function () {
     try {
       tryImport(document.getElementById("importArea").value);
