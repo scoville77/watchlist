@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v70";
+  var VERSION = "v71";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -462,8 +462,10 @@
   ];
   // Eigener Cloudflare-Worker (per Import konfigurierbar) laeuft zuerst:
   // schneller, stabiler, privat. Gratis-Proxys bleiben als Rueckfall.
+  // Eigener Worker fest eingebaut; per Import ("workerProxy") ueberschreibbar
+  var DEFAULT_WORKER = "https://watchlist.pgernot1.workers.dev/?u=";
   function activeProxies() {
-    var w = (storeGet("workerProxy") || "").trim();
+    var w = (storeGet("workerProxy") || DEFAULT_WORKER).trim();
     if (!w) return PROXIES;
     var mk = function (url) { return w + encodeURIComponent(url); };
     return [mk].concat(PROXIES);
