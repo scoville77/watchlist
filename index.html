@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v79";
+  var VERSION = "v80";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -931,17 +931,20 @@
 
         // Ausreisser-Schutz: L&S liefert bei einzelnen Zertifikaten
         // gelegentlich Kurse aus einer alten Skala (z.B. halber Wert).
-        // Weicht der Kurs stark vom letzten bekannten ab, wird er verworfen -
-        // erst wenn er sich mehrfach bestaetigt, gilt er als echt.
+        // Geprueft wird gegen den Vortagesschluss aus der Kurshistorie -
+        // das funktioniert auch beim allerersten Abruf nach dem Oeffnen.
+        var abw = price / prev;
         var bekannt = lastQuotes[isin];
         if (bekannt && bekannt.ok && bekannt.price) {
-          var faktor = price / bekannt.price;
-          if (faktor < 0.65 || faktor > 1.55) {
-            lsOutlier[isin] = (lsOutlier[isin] || 0) + 1;
-            if (lsOutlier[isin] < 3) throw new Error("ausreisser");
-          } else {
-            lsOutlier[isin] = 0;
-          }
+          // Falls vorhanden, zusaetzlich gegen den letzten guten Kurs pruefen
+          var f2 = price / bekannt.price;
+          if (f2 < abw) abw = f2;
+        }
+        if (abw < 0.65 || abw > 1.55) {
+          lsOutlier[isin] = (lsOutlier[isin] || 0) + 1;
+          if (lsOutlier[isin] < 3) throw new Error("ausreisser");
+        } else {
+          lsOutlier[isin] = 0;
         }
         return {
           symbol: isin, ok: true, price: price, pct: (price - prev) / prev * 100,
