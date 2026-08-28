@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v75";
+  var VERSION = "v76";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -463,7 +463,7 @@
   // Eigener Cloudflare-Worker (per Import konfigurierbar) laeuft zuerst:
   // schneller, stabiler, privat. Gratis-Proxys bleiben als Rueckfall.
   // Eigener Worker fest eingebaut; per Import ("workerProxy") ueberschreibbar
-  var DEFAULT_WORKER = ""; // aus: Yahoo drosselt die einzelne Worker-Adresse
+  var DEFAULT_WORKER = "https://watchlist.pgernot1.workers.dev/?u=";
   function activeProxies() {
     var w = (storeGet("workerProxy") || DEFAULT_WORKER).trim();
     if (!w) return PROXIES;
@@ -1000,7 +1000,10 @@
       }
     }
 
-    all.forEach(function (s) {
+    all.forEach(function (s, i) {
+      // Anfragen gestaffelt starten - eine Salve von 12 Abrufen
+      // fuehrt bei Yahoo zur Drosselung
+      setTimeout(function () {
       fetchQuote(s)
         .catch(function () { return { symbol: s, ok: false }; })
         .then(function (q) {
@@ -1016,6 +1019,7 @@
             refreshBtn.classList.remove("spinning");
           }
         });
+      }, i * 400);
     });
   }
 
@@ -1165,7 +1169,7 @@
         " · " + VERSION);
     });
   }
-  setInterval(tickOne, 6000);
+  setInterval(tickOne, 15000);
   // Beim Zurueckkehren in die App: nach oben scrollen und aktualisieren.
   // War die App laenger als 3 Minuten im Hintergrund: zurueck zur Watchlist.
   var hiddenSince = null;
