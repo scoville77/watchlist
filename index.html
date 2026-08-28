@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v77";
+  var VERSION = "v78";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -455,8 +455,10 @@
   // Yahoo Finance erlaubt keine direkten Browser-Abrufe (CORS),
   // deshalb laufen die Anfragen über einen öffentlichen Proxy.
   // Drei Dienste als Kette; hängt oder scheitert einer, springt der nächste ein.
+  // Gratis-Umleitungsdienste als Notnagel. Sie fielen am 11.08.2026 alle
+  // gleichzeitig aus - deshalb laeuft der Regelbetrieb ueber den eigenen
+  // Worker; diese hier greifen nur, wenn der Worker nicht antwortet.
   var PROXIES = [
-    function (url) { return "https://corsproxy.io/?url=" + encodeURIComponent(url); },
     function (url) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); },
     function (url) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url); }
   ];
