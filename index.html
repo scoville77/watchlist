@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v78";
+  var VERSION = "v79";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -535,6 +535,7 @@
 
   // Letzte Kursdaten je Symbol (für das Detail-Panel)
   var lastQuotes = {};
+  var lsOutlier = {}; // zaehlt verworfene L&S-Ausreisser je Wert
 
   // Sortierung: beste Performance links oben, Werte ohne Daten ans Ende
   function sortQuotes(a, b) {
@@ -927,6 +928,21 @@
         }
         if (prev === null) prev = histWD[histWD.length - 1][1];
         if (!price || !prev) throw new Error("nodata");
+
+        // Ausreisser-Schutz: L&S liefert bei einzelnen Zertifikaten
+        // gelegentlich Kurse aus einer alten Skala (z.B. halber Wert).
+        // Weicht der Kurs stark vom letzten bekannten ab, wird er verworfen -
+        // erst wenn er sich mehrfach bestaetigt, gilt er als echt.
+        var bekannt = lastQuotes[isin];
+        if (bekannt && bekannt.ok && bekannt.price) {
+          var faktor = price / bekannt.price;
+          if (faktor < 0.65 || faktor > 1.55) {
+            lsOutlier[isin] = (lsOutlier[isin] || 0) + 1;
+            if (lsOutlier[isin] < 3) throw new Error("ausreisser");
+          } else {
+            lsOutlier[isin] = 0;
+          }
+        }
         return {
           symbol: isin, ok: true, price: price, pct: (price - prev) / prev * 100,
           name: lsInfo && lsInfo.name ? lsInfo.name : isin,
