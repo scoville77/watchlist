@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v73";
+  var VERSION = "v74";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -981,35 +981,42 @@
     refreshBtn.classList.add("spinning");
     setStatus("Aktualisiere…");
 
-    var wl = getSymbols();
     var all = getAllSymbols();
-    Promise.all(all.map(function (s) { return fetchQuote(s); }))
-      .then(function (results) {
-        // Nur-Depot-Werte im Kursspeicher ablegen, aber nicht als Kachel zeigen
-        results.forEach(function (q) {
-          if (wl.indexOf(q.symbol) === -1) lastQuotes[q.symbol] = q;
-        });
-        results = results.filter(function (q) { return wl.indexOf(q.symbol) !== -1; });
-        results.sort(sortQuotes);
-        try {
-          renderQuotes(results);
-          renderActivePage();
-        } catch (e) {
-          errorEl.textContent = "Anzeigefehler: " + e.message;
-          errorEl.style.display = "block";
-        }
-        var now = new Date();
-        setStatus("Stand: " +
-          now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
-          " · " + VERSION);
-      })
-      .catch(function (e) {
-        setStatus("Aktualisierung fehlgeschlagen");
-      })
-      .finally(function () {
-        loading = false;
-        refreshBtn.classList.remove("spinning");
+    var offen = all.length;
+
+    // Jede Antwort wird sofort angezeigt - ein haengender Wert blockiert
+    // nicht mehr die gesamte Anzeige
+    function zeigeStand() {
+      var results = getSymbols().map(function (s) {
+        return lastQuotes[s] || { symbol: s, ok: false };
       });
+      results.sort(sortQuotes);
+      try {
+        renderQuotes(results);
+        renderActivePage();
+      } catch (e) {
+        errorEl.textContent = "Anzeigefehler: " + e.message;
+        errorEl.style.display = "block";
+      }
+    }
+
+    all.forEach(function (s) {
+      fetchQuote(s)
+        .catch(function () { return { symbol: s, ok: false }; })
+        .then(function (q) {
+          lastQuotes[s] = q;
+          zeigeStand();
+          offen--;
+          if (offen === 0) {
+            var now = new Date();
+            setStatus("Stand: " +
+              now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
+              " · " + VERSION);
+            loading = false;
+            refreshBtn.classList.remove("spinning");
+          }
+        });
+    });
   }
 
   // ---- Symbole verwalten ----
