@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v81";
+  var VERSION = "v82";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -536,6 +536,14 @@
   // Letzte Kursdaten je Symbol (für das Detail-Panel)
   var lastQuotes = {};
   var lsOutlier = {}; // zaehlt verworfene L&S-Ausreisser je Wert
+  // Ein fehlgeschlagener Abruf darf einen bereits bekannten Kurs nicht
+  // loeschen - sonst flackern Kacheln zwischen Kurs und "keine Daten"
+  function merkeQuote(sym, q) {
+    var alt = lastQuotes[sym];
+    if (q && q.ok) { lastQuotes[sym] = q; return; }
+    if (alt && alt.ok) return; // alten guten Kurs behalten
+    lastQuotes[sym] = q || { symbol: sym, ok: false };
+  }
 
   // Sortierung: beste Performance links oben, Werte ohne Daten ans Ende
   function sortQuotes(a, b) {
@@ -1040,7 +1048,7 @@
       fetchQuote(s)
         .catch(function () { return { symbol: s, ok: false }; })
         .then(function (q) {
-          lastQuotes[s] = q;
+          merkeQuote(s, q);
           zeigeStand();
           offen--;
           if (offen === 0) {
@@ -1190,7 +1198,8 @@
     var sym = symbols[tickIndex++];
     fetchQuote(sym).then(function (q) {
       var wl = getSymbols();
-      if (wl.indexOf(sym) === -1) lastQuotes[sym] = q;
+      merkeQuote(sym, q);
+      q = lastQuotes[sym];
       var results = wl.map(function (s) {
         return s === sym ? q : (lastQuotes[s] || { symbol: s, ok: false });
       });
