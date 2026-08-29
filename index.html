@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v80";
+  var VERSION = "v81";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -942,7 +942,18 @@
         }
         if (abw < 0.65 || abw > 1.55) {
           lsOutlier[isin] = (lsOutlier[isin] || 0) + 1;
-          if (lsOutlier[isin] < 3) throw new Error("ausreisser");
+          if (lsOutlier[isin] < 3) {
+            // Statt gar nichts zu zeigen: auf den letzten Schlusskurs der
+            // Historie zurueckfallen (z.B. Freitagsschluss am Wochenende)
+            var lastClose = histWD[histWD.length - 1][1];
+            var lastCloseTs = histWD[histWD.length - 1][0];
+            if (lastClose && lastClose / prev > 0.65 && lastClose / prev < 1.55) {
+              price = lastClose;
+              priceTs = lastCloseTs;
+            } else {
+              throw new Error("ausreisser");
+            }
+          }
         } else {
           lsOutlier[isin] = 0;
         }
