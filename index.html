@@ -181,6 +181,11 @@
   }
   .hist-card .hc-delta { font-weight: 800; font-variant-numeric: tabular-nums; }
   .hist-card svg { display: block; width: 100%; height: 34px; }
+  .hist-card .hc-slide {
+    transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1), opacity 0.2s ease;
+    will-change: transform;
+  }
+  .hist-card.dragging .hc-slide { transition: none; }
   .dep-title {
     font-size: 22px; font-weight: 900; letter-spacing: -0.02em;
     margin: 4px 2px 10px;
@@ -404,7 +409,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v86";
+  var VERSION = "v87";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1433,9 +1438,10 @@
       '<div class="hc-top"><span>Verlauf: ' + histWinLabel() + ' \u00b7 \u2039 wischen \u203a</span>' +
       '<span class="hc-delta ' + cls + '">seit ' + startTxt + ' ' +
       (delta >= 0 ? "+" : "") + fmtEur0(delta) + ' \u20ac</span></div>' +
+      '<div class="hc-slide">' +
       '<svg viewBox="0 0 100 34" preserveAspectRatio="none">' +
       '<polyline fill="none" stroke="' + (delta >= 0 ? "#35d073" : "#ff6b5e") + '" stroke-width="1.6" points="' + pts + '"/>' +
-      '</svg></div>';
+      '</svg></div></div>';
   }
 
   function renderDay() {
@@ -1504,7 +1510,7 @@
 
   // Wischen auf der Verlaufskarte wechselt das Zeitfenster:
   // nach rechts = weiter zurueck, nach links = naeher heran
-  var histX = null;
+  var histX = null, histCardEl = null, histSlideEl = null;
   function setHistWin(i) {
     var n = HIST_WINDOWS.length;
     storeSet("histWin", String(((i % n) + n) % n));
@@ -1512,14 +1518,37 @@
   }
   dayContent.addEventListener("touchstart", function (e) {
     var card = e.target.closest ? e.target.closest("#histCard") : null;
-    histX = card ? e.touches[0].clientX : null;
+    if (!card) { histX = null; return; }
+    histX = e.touches[0].clientX;
+    histCardEl = card;
+    histSlideEl = card.querySelector(".hc-slide");
+    card.classList.add("dragging");
+  }, { passive: true });
+  dayContent.addEventListener("touchmove", function (e) {
+    if (histX === null || !histSlideEl) return;
+    var dx = e.touches[0].clientX - histX;
+    // Kurve folgt dem Finger, mit Widerstand und leichtem Ausblenden
+    var off = dx * 0.55;
+    histSlideEl.style.transform = "translateX(" + off + "px)";
+    histSlideEl.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 260));
   }, { passive: true });
   dayContent.addEventListener("touchend", function (e) {
     if (histX === null) return;
     var dx = e.changedTouches[0].clientX - histX;
-    histX = null;
-    if (Math.abs(dx) < 35) return;
-    setHistWin(histWinIndex() + (dx > 0 ? 1 : -1));
+    var card = histCardEl, slide = histSlideEl;
+    histX = null; histCardEl = null; histSlideEl = null;
+    if (card) card.classList.remove("dragging");
+    if (!slide) return;
+    if (Math.abs(dx) >= 45) {
+      // Weiterschieben, dann neu zeichnen - wirkt wie ein Seitenwechsel
+      slide.style.transform = "translateX(" + (dx > 0 ? 220 : -220) + "px)";
+      slide.style.opacity = "0";
+      setTimeout(function () { setHistWin(histWinIndex() + (dx > 0 ? 1 : -1)); }, 170);
+    } else {
+      // Zurueckfedern
+      slide.style.transform = "translateX(0)";
+      slide.style.opacity = "1";
+    }
   }, { passive: true });
 
   // Seitenumschaltung: Pager verschiebt beide Seiten wie bei iOS
