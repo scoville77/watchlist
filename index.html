@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v83";
+  var VERSION = "v84";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1396,12 +1396,28 @@
       storeSet("histDepot", JSON.stringify(m));
     } catch (e) {}
   }
+  var HIST_WINDOWS = [7, 30, 90, 0]; // 0 = alles
+  function histWinIndex() {
+    var i = parseInt(storeGet("histWin") || "1", 10);
+    return (isNaN(i) || i < 0 || i >= HIST_WINDOWS.length) ? 1 : i;
+  }
+  function histWinLabel() {
+    var w = HIST_WINDOWS[histWinIndex()];
+    return w ? (w + " Tage") : "gesamt";
+  }
   function histSparkline() {
     var m;
     try { m = JSON.parse(storeGet("histDepot") || "{}"); } catch (e) { return ""; }
-    var keys = Object.keys(m).sort();
-    if (keys.length < 2) return "";
-    keys = keys.slice(-30);
+    var allKeys = Object.keys(m).sort();
+    if (allKeys.length < 2) return "";
+    // Feste Bezugsgroesse: erster aufgezeichneter Tag - diese Zahl springt nie
+    var startKey = allKeys[0];
+    var startVal = m[startKey];
+    var endVal = m[allKeys[allKeys.length - 1]];
+    var startTxt = startKey.slice(8, 10) + "." + startKey.slice(5, 7) + ".";
+    var win = HIST_WINDOWS[histWinIndex()];
+    var keys = win ? allKeys.slice(-win) : allKeys;
+    if (keys.length < 2) keys = allKeys;
     var vals = keys.map(function (k) { return m[k]; });
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     var span = Math.max(1, max - min);
@@ -1410,12 +1426,12 @@
       var y = 30 - ((v - min) / span) * 26 + 2;
       return x.toFixed(1) + "," + y.toFixed(1);
     }).join(" ");
-    var first = vals[0], last = vals[vals.length - 1];
-    var delta = last - first;
+    var delta = endVal - startVal;
     var cls = delta >= 0 ? "pos" : "neg";
-    return '<div class="hist-card">' +
-      '<div class="hc-top"><span>Depotwert-Verlauf (' + keys.length + ' Tage)</span>' +
-      '<span class="hc-delta ' + cls + '">' + (delta >= 0 ? "+" : "") + fmtEur0(delta) + ' \u20ac</span></div>' +
+    return '<div class="hist-card" id="histCard">' +
+      '<div class="hc-top"><span>Verlauf: ' + histWinLabel() + ' \u00b7 tippen</span>' +
+      '<span class="hc-delta ' + cls + '">seit ' + startTxt + ' ' +
+      (delta >= 0 ? "+" : "") + fmtEur0(delta) + ' \u20ac</span></div>' +
       '<svg viewBox="0 0 100 34" preserveAspectRatio="none">' +
       '<polyline fill="none" stroke="' + (delta >= 0 ? "#35d073" : "#ff6b5e") + '" stroke-width="1.6" points="' + pts + '"/>' +
       '</svg></div>';
@@ -1484,6 +1500,14 @@
       groups[g].forEach(function (r) { cards[i++].textContent = r.p.titel || r.p.symbol; });
     });
   }
+
+  // Tipp auf die Verlaufskarte schaltet das Zeitfenster um
+  dayContent.addEventListener("click", function (e) {
+    var card = e.target.closest ? e.target.closest("#histCard") : null;
+    if (!card) return;
+    storeSet("histWin", String((histWinIndex() + 1) % HIST_WINDOWS.length));
+    renderDay();
+  });
 
   // Seitenumschaltung: Pager verschiebt beide Seiten wie bei iOS
   var pager = document.getElementById("pager");
