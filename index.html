@@ -181,11 +181,11 @@
   }
   .hist-card .hc-delta { font-weight: 800; font-variant-numeric: tabular-nums; }
   .hist-card svg { display: block; width: 100%; height: 34px; }
-  .hist-card .hc-slide {
+  .hist-card {
     transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1), opacity 0.2s ease;
     will-change: transform;
   }
-  .hist-card.dragging .hc-slide { transition: none; }
+  .hist-card.dragging { transition: none; }
   .dep-title {
     font-size: 22px; font-weight: 900; letter-spacing: -0.02em;
     margin: 4px 2px 10px;
@@ -409,7 +409,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v88";
+  var VERSION = "v89";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1535,7 +1535,7 @@
     if (!card) { histX = null; return; }
     histX = e.touches[0].clientX;
     histCardEl = card;
-    histSlideEl = card.querySelector(".hc-slide");
+    histSlideEl = card; // die gesamte Karte gleitet mit
     card.classList.add("dragging");
   }, { passive: true });
   dayContent.addEventListener("touchmove", function (e) {
