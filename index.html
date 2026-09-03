@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v85";
+  var VERSION = "v86";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1430,7 +1430,7 @@
     var delta = endVal - startVal;
     var cls = delta >= 0 ? "pos" : "neg";
     return '<div class="hist-card" id="histCard">' +
-      '<div class="hc-top"><span>Verlauf: ' + histWinLabel() + ' \u00b7 tippen</span>' +
+      '<div class="hc-top"><span>Verlauf: ' + histWinLabel() + ' \u00b7 \u2039 wischen \u203a</span>' +
       '<span class="hc-delta ' + cls + '">seit ' + startTxt + ' ' +
       (delta >= 0 ? "+" : "") + fmtEur0(delta) + ' \u20ac</span></div>' +
       '<svg viewBox="0 0 100 34" preserveAspectRatio="none">' +
@@ -1502,13 +1502,25 @@
     });
   }
 
-  // Tipp auf die Verlaufskarte schaltet das Zeitfenster um
-  dayContent.addEventListener("click", function (e) {
-    var card = e.target.closest ? e.target.closest("#histCard") : null;
-    if (!card) return;
-    storeSet("histWin", String((histWinIndex() + 1) % HIST_WINDOWS.length));
+  // Wischen auf der Verlaufskarte wechselt das Zeitfenster:
+  // nach rechts = weiter zurueck, nach links = naeher heran
+  var histX = null;
+  function setHistWin(i) {
+    var n = HIST_WINDOWS.length;
+    storeSet("histWin", String(((i % n) + n) % n));
     renderDay();
-  });
+  }
+  dayContent.addEventListener("touchstart", function (e) {
+    var card = e.target.closest ? e.target.closest("#histCard") : null;
+    histX = card ? e.touches[0].clientX : null;
+  }, { passive: true });
+  dayContent.addEventListener("touchend", function (e) {
+    if (histX === null) return;
+    var dx = e.changedTouches[0].clientX - histX;
+    histX = null;
+    if (Math.abs(dx) < 35) return;
+    setHistWin(histWinIndex() + (dx > 0 ? 1 : -1));
+  }, { passive: true });
 
   // Seitenumschaltung: Pager verschiebt beide Seiten wie bei iOS
   var pager = document.getElementById("pager");
@@ -1537,6 +1549,8 @@
   var dragStartX = null, dragStartY = null, dragging = false, dragBase = 0;
   document.addEventListener("touchstart", function (e) {
     if (sheetIsOpen()) { dragStartX = null; return; }
+    // Wischgesten auf der Verlaufskarte gehoeren der Karte, nicht dem Pager
+    if (e.target.closest && e.target.closest("#histCard")) { dragStartX = null; return; }
     dragStartX = e.touches[0].clientX;
     dragStartY = e.touches[0].clientY;
     dragging = false;
