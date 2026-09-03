@@ -182,7 +182,7 @@
   .hist-card .hc-delta { font-weight: 800; font-variant-numeric: tabular-nums; }
   .hist-card svg { display: block; width: 100%; height: 34px; }
   .hist-card {
-    transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1), opacity 0.2s ease;
+    transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1);
     will-change: transform;
   }
   .hist-card.dragging { transition: none; }
@@ -409,7 +409,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v89";
+  var VERSION = "v90";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1541,10 +1541,8 @@
   dayContent.addEventListener("touchmove", function (e) {
     if (histX === null || !histSlideEl) return;
     var dx = e.touches[0].clientX - histX;
-    // Kurve folgt dem Finger, mit Widerstand und leichtem Ausblenden
-    var off = dx * 0.55;
-    histSlideEl.style.transform = "translateX(" + off + "px)";
-    histSlideEl.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 260));
+    // Karte folgt dem Finger 1:1 - genau wie die Seiten im Pager
+    histSlideEl.style.transform = "translateX(" + dx + "px)";
   }, { passive: true });
   dayContent.addEventListener("touchend", function (e) {
     if (histX === null) return;
@@ -1553,15 +1551,14 @@
     histX = null; histCardEl = null; histSlideEl = null;
     if (card) card.classList.remove("dragging");
     if (!slide) return;
-    if (Math.abs(dx) >= 45) {
-      // Weiterschieben, dann neu zeichnen - wirkt wie ein Seitenwechsel
-      slide.style.transform = "translateX(" + (dx > 0 ? 220 : -220) + "px)";
-      slide.style.opacity = "0";
-      setTimeout(function () { setHistWin(histWinIndex() + (dx > 0 ? 1 : -1)); }, 170);
+    var schwelle = (slide.offsetWidth || 300) * 0.22; // wie beim Seiten-Pager
+    if (Math.abs(dx) >= schwelle) {
+      // Karte hinausgleiten lassen, dann mit neuem Zeitraum zurueckholen
+      var weg = (slide.offsetWidth || 300) + 48;
+      slide.style.transform = "translateX(" + (dx > 0 ? weg : -weg) + "px)";
+      setTimeout(function () { setHistWin(histWinIndex() + (dx > 0 ? 1 : -1)); }, 200);
     } else {
-      // Zurueckfedern
-      slide.style.transform = "translateX(0)";
-      slide.style.opacity = "1";
+      slide.style.transform = "translateX(0)"; // zurueckfedern
     }
   }, { passive: true });
 
