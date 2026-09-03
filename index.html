@@ -409,7 +409,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v87";
+  var VERSION = "v88";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1401,13 +1401,26 @@
       storeSet("histDepot", JSON.stringify(m));
     } catch (e) {}
   }
-  var HIST_WINDOWS = [7, 30, 90, 0]; // 0 = alles
+  // Auswahl waechst mit der Datenmenge: ein 90-Tage-Fenster wird erst
+  // angeboten, wenn es auch 90 Tage gibt. 0 = gesamter Zeitraum.
+  function histTage() {
+    try { return Object.keys(JSON.parse(storeGet("histDepot") || "{}")).length; }
+    catch (e) { return 0; }
+  }
+  function histWindows() {
+    var n = histTage();
+    var out = [7, 30, 90].filter(function (w) { return n > w; });
+    out.push(0);
+    return out;
+  }
   function histWinIndex() {
-    var i = parseInt(storeGet("histWin") || "1", 10);
-    return (isNaN(i) || i < 0 || i >= HIST_WINDOWS.length) ? 1 : i;
+    var list = histWindows();
+    var want = parseInt(storeGet("histWin") || "7", 10);
+    var i = list.indexOf(isNaN(want) ? 7 : want);
+    return i === -1 ? list.length - 1 : i;
   }
   function histWinLabel() {
-    var w = HIST_WINDOWS[histWinIndex()];
+    var w = histWindows()[histWinIndex()];
     return w ? (w + " Tage") : "gesamt";
   }
   function histSparkline() {
@@ -1415,7 +1428,7 @@
     try { m = JSON.parse(storeGet("histDepot") || "{}"); } catch (e) { return ""; }
     var allKeys = Object.keys(m).sort();
     if (allKeys.length < 2) return "";
-    var win = HIST_WINDOWS[histWinIndex()];
+    var win = histWindows()[histWinIndex()];
     var keys = win ? allKeys.slice(-win) : allKeys;
     if (keys.length < 2) keys = allKeys;
     // Bezugspunkt ist der Anfang des gewaehlten Fensters; das Datum steht
@@ -1512,8 +1525,9 @@
   // nach rechts = weiter zurueck, nach links = naeher heran
   var histX = null, histCardEl = null, histSlideEl = null;
   function setHistWin(i) {
-    var n = HIST_WINDOWS.length;
-    storeSet("histWin", String(((i % n) + n) % n));
+    var list = histWindows();
+    if (i < 0 || i >= list.length) { renderDay(); return; } // anstossen
+    storeSet("histWin", String(list[i]));
     renderDay();
   }
   dayContent.addEventListener("touchstart", function (e) {
