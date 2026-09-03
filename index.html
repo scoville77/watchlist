@@ -181,11 +181,16 @@
   }
   .hist-card .hc-delta { font-weight: 800; font-variant-numeric: tabular-nums; }
   .hist-card svg { display: block; width: 100%; height: 34px; }
-  .hist-card {
+  .hist-wrap { overflow: hidden; margin-bottom: 12px; }
+  .hist-rail {
+    display: flex; width: 300%;
+    transform: translateX(-33.3333%);
     transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1);
     will-change: transform;
   }
-  .hist-card.dragging { transition: none; }
+  .hist-wrap.dragging .hist-rail { transition: none; }
+  .hist-slot { width: 33.3333%; flex: none; padding: 0 6px; box-sizing: border-box; }
+  .hist-slot .hist-card { margin-bottom: 0; }
   .dep-title {
     font-size: 22px; font-weight: 900; letter-spacing: -0.02em;
     margin: 4px 2px 10px;
@@ -409,7 +414,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v90";
+  var VERSION = "v91";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1423,38 +1428,51 @@
     var w = histWindows()[histWinIndex()];
     return w ? (w + " Tage") : "gesamt";
   }
-  function histSparkline() {
+  // Eine einzelne Verlaufskarte fuer ein bestimmtes Zeitfenster
+  function histCardHtml(idx) {
     var m;
     try { m = JSON.parse(storeGet("histDepot") || "{}"); } catch (e) { return ""; }
     var allKeys = Object.keys(m).sort();
     if (allKeys.length < 2) return "";
-    var win = histWindows()[histWinIndex()];
+    var list = histWindows();
+    var i = ((idx % list.length) + list.length) % list.length;
+    var win = list[i];
     var keys = win ? allKeys.slice(-win) : allKeys;
     if (keys.length < 2) keys = allKeys;
-    // Bezugspunkt ist der Anfang des gewaehlten Fensters; das Datum steht
-    // daneben, damit eine Veraenderung der Zahl immer erklaerbar bleibt
     var startKey = keys[0];
     var startVal = m[startKey];
     var endVal = m[keys[keys.length - 1]];
     var startTxt = startKey.slice(8, 10) + "." + startKey.slice(5, 7) + ".";
+    var label = win ? (win + " Tage") : "gesamt";
     var vals = keys.map(function (k) { return m[k]; });
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     var span = Math.max(1, max - min);
-    var pts = vals.map(function (v, i) {
-      var x = (i / (vals.length - 1)) * 100;
+    var pts = vals.map(function (v, j) {
+      var x = (j / (vals.length - 1)) * 100;
       var y = 30 - ((v - min) / span) * 26 + 2;
       return x.toFixed(1) + "," + y.toFixed(1);
     }).join(" ");
     var delta = endVal - startVal;
     var cls = delta >= 0 ? "pos" : "neg";
-    return '<div class="hist-card" id="histCard">' +
-      '<div class="hc-top"><span>Verlauf: ' + histWinLabel() + ' \u00b7 \u2039 wischen \u203a</span>' +
+    return '<div class="hist-slot"><div class="hist-card">' +
+      '<div class="hc-top"><span>Verlauf: ' + label + '</span>' +
       '<span class="hc-delta ' + cls + '">seit ' + startTxt + ' ' +
       (delta >= 0 ? "+" : "") + fmtEur0(delta) + ' \u20ac</span></div>' +
-      '<div class="hc-slide">' +
       '<svg viewBox="0 0 100 34" preserveAspectRatio="none">' +
       '<polyline fill="none" stroke="' + (delta >= 0 ? "#35d073" : "#ff6b5e") + '" stroke-width="1.6" points="' + pts + '"/>' +
       '</svg></div></div>';
+  }
+
+  // Schiene mit Vorgaenger, aktueller Karte und Nachfolger - beim Wischen
+  // schiebt sich die Nachbarkarte herein, genau wie beim Seiten-Pager
+  function histSparkline() {
+    var i = histWinIndex();
+    var mitte = histCardHtml(i);
+    if (!mitte) return "";
+    return '<div class="hist-wrap" id="histCard">' +
+      '<div class="hist-rail">' +
+      histCardHtml(i - 1) + mitte + histCardHtml(i + 1) +
+      '</div></div>';
   }
 
   function renderDay() {
@@ -1526,8 +1544,8 @@
   var histX = null, histCardEl = null, histSlideEl = null;
   function setHistWin(i) {
     var list = histWindows();
-    if (i < 0 || i >= list.length) { renderDay(); return; } // anstossen
-    storeSet("histWin", String(list[i]));
+    var n = list.length;
+    storeSet("histWin", String(list[((i % n) + n) % n])); // laeuft im Kreis
     renderDay();
   }
   dayContent.addEventListener("touchstart", function (e) {
@@ -1535,14 +1553,14 @@
     if (!card) { histX = null; return; }
     histX = e.touches[0].clientX;
     histCardEl = card;
-    histSlideEl = card; // die gesamte Karte gleitet mit
+    histSlideEl = card.querySelector(".hist-rail");
     card.classList.add("dragging");
   }, { passive: true });
   dayContent.addEventListener("touchmove", function (e) {
     if (histX === null || !histSlideEl) return;
     var dx = e.touches[0].clientX - histX;
-    // Karte folgt dem Finger 1:1 - genau wie die Seiten im Pager
-    histSlideEl.style.transform = "translateX(" + dx + "px)";
+    // Schiene folgt dem Finger 1:1 - genau wie die Seiten im Pager
+    histSlideEl.style.transform = "translateX(calc(-33.3333% + " + dx + "px))";
   }, { passive: true });
   dayContent.addEventListener("touchend", function (e) {
     if (histX === null) return;
@@ -1551,14 +1569,12 @@
     histX = null; histCardEl = null; histSlideEl = null;
     if (card) card.classList.remove("dragging");
     if (!slide) return;
-    var schwelle = (slide.offsetWidth || 300) * 0.22; // wie beim Seiten-Pager
-    if (Math.abs(dx) >= schwelle) {
-      // Karte hinausgleiten lassen, dann mit neuem Zeitraum zurueckholen
-      var weg = (slide.offsetWidth || 300) + 48;
-      slide.style.transform = "translateX(" + (dx > 0 ? weg : -weg) + "px)";
-      setTimeout(function () { setHistWin(histWinIndex() + (dx > 0 ? 1 : -1)); }, 200);
+    var breite = card ? card.offsetWidth : 300;
+    if (Math.abs(dx) >= breite * 0.22) { // Schwelle wie beim Seiten-Pager
+      slide.style.transform = dx > 0 ? "translateX(0)" : "translateX(-66.6666%)";
+      setTimeout(function () { setHistWin(histWinIndex() + (dx > 0 ? -1 : 1)); }, 320);
     } else {
-      slide.style.transform = "translateX(0)"; // zurueckfedern
+      slide.style.transform = "translateX(-33.3333%)"; // zurueckfedern
     }
   }, { passive: true });
 
