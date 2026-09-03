@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v84";
+  var VERSION = "v85";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1410,14 +1410,15 @@
     try { m = JSON.parse(storeGet("histDepot") || "{}"); } catch (e) { return ""; }
     var allKeys = Object.keys(m).sort();
     if (allKeys.length < 2) return "";
-    // Feste Bezugsgroesse: erster aufgezeichneter Tag - diese Zahl springt nie
-    var startKey = allKeys[0];
-    var startVal = m[startKey];
-    var endVal = m[allKeys[allKeys.length - 1]];
-    var startTxt = startKey.slice(8, 10) + "." + startKey.slice(5, 7) + ".";
     var win = HIST_WINDOWS[histWinIndex()];
     var keys = win ? allKeys.slice(-win) : allKeys;
     if (keys.length < 2) keys = allKeys;
+    // Bezugspunkt ist der Anfang des gewaehlten Fensters; das Datum steht
+    // daneben, damit eine Veraenderung der Zahl immer erklaerbar bleibt
+    var startKey = keys[0];
+    var startVal = m[startKey];
+    var endVal = m[keys[keys.length - 1]];
+    var startTxt = startKey.slice(8, 10) + "." + startKey.slice(5, 7) + ".";
     var vals = keys.map(function (k) { return m[k]; });
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     var span = Math.max(1, max - min);
