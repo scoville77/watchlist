@@ -404,7 +404,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v82";
+  var VERSION = "v83";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1379,6 +1379,13 @@
   var dayContent = document.getElementById("dayContent");
   // Taeglicher Depotwert-Verlauf (letzter Stand des Tages, max. 120 Tage)
   function histRecord(value) {
+    // Nur waehrend/nach der Boersenzeit aufzeichnen. Vor 9:15 und am
+    // Wochenende stehen alle Kurse noch auf dem Vortagesschluss - ein
+    // Eintrag dort wuerde nur eine Scheinstufe in die Kurve zeichnen.
+    var jetzt = new Date();
+    var tag = jetzt.getDay();
+    if (tag < 1 || tag > 5) return;
+    if (jetzt.getHours() * 60 + jetzt.getMinutes() < 9 * 60 + 15) return;
     try {
       var m = JSON.parse(storeGet("histDepot") || "{}");
       var d = new Date();
