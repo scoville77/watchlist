@@ -414,7 +414,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v91";
+  var VERSION = "v93";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -437,6 +437,7 @@
     "VVSM.DE": "HALBLEITER",
     "DE000LS9UTF2": "WF GLOBAL",
     "DE000LS9UK98": "WF SZEW",
+    "US68373M1071": "OPERA",
     "GOLDOZ": "GOLD OZ"
   };
 
@@ -1484,12 +1485,21 @@
     }
     var rows = [], pending = 0;
     var tot = { gain: 0, now: 0, prev: 0 };
+    var heuteKey = (function () {
+      var d = new Date();
+      return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    })();
     data.positionen.forEach(function (p) {
       var q = lastQuotes[p.symbol];
       if (!q || !q.ok) { pending++; rows.push({ p: p, pending: true }); return; }
       var prev = q.price / (1 + q.pct / 100);
+      // Am Kauftag ist der Vortagesschluss keine sinnvolle Basis: die Bewegung
+      // davor hat der Markt ohne uns gemacht. Dann zaehlt der Kaufkurs.
+      var amKauftag = (p.kaufdatum === heuteKey && p.kaufkurs > 0);
+      if (amKauftag) prev = p.kaufkurs;
+      var pct = prev ? (q.price / prev - 1) * 100 : 0;
       var gain = p.stueck * (q.price - prev);
-      rows.push({ p: p, kurs: q.price, prev: prev, gain: gain, pct: q.pct });
+      rows.push({ p: p, kurs: q.price, prev: prev, gain: gain, pct: pct, neu: amKauftag });
       tot.gain += gain; tot.now += p.stueck * q.price; tot.prev += p.stueck * prev;
     });
     var totPct = tot.prev ? (tot.now / tot.prev - 1) : 0;
@@ -1497,7 +1507,9 @@
 
     var html = '<div class="dep-title">Tagesgewinn</div>' + histSparkline() +
       '<div class="dep-summary">' +
-      '<div class="cap">heute \u00b7 live vs. Schlusskurs Vortag \u00b7 brutto, ohne KESt und Spesen</div>' +
+      '<div class="cap">heute \u00b7 live vs. Schlusskurs Vortag' +
+      (rows.some(function (r) { return !r.pending && r.neu; }) ? ' (Neuk\u00e4ufe ab Kaufkurs)' : '') +
+      ' \u00b7 brutto, ohne KESt und Spesen</div>' +
       '<div class="big ' + signCls(tot.gain) + '">' + fmtEur(tot.gain) + ' \u20ac</div>' +
       '<div class="rows">' +
       '<div class="dep-srow"><span class="k">Depotwert jetzt</span><span>' + fmtEur(tot.now) + ' \u20ac</span></div>' +
@@ -1527,7 +1539,7 @@
           html += '<div class="dep-card"><div class="l"><div class="t"></div>' +
             '<div class="s">Wert ' + fmtEur0(p.stueck * r.kurs) + ' \u20ac</div></div>' +
             '<div class="r"><div class="net ' + signCls(r.gain) + '">' + fmtEur(r.gain) + ' \u20ac</div>' +
-            '<div class="sub">' + fmtPct(r.pct / 100) + ' heute</div></div></div>';
+            '<div class="sub">' + fmtPct(r.pct / 100) + (r.neu ? ' seit Kauf' : ' heute') + '</div></div></div>';
         }
       });
     });
