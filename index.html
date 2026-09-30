@@ -230,6 +230,9 @@
   .pos { color: #35d073; }
   .neg { color: #ff6b5e; }
   a.dep-card { text-decoration: none; color: inherit; }
+  .real-year { cursor: pointer; }
+  .real-year:active { background: rgba(255,255,255,0.06); }
+  .real-trade { margin-left: 16px; background: transparent; }
   .dep-card .t.wrap { white-space: normal; line-height: 1.35; font-size: 13.5px; }
   .news-meta { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
   .news-tag { color: #4da3ff; font-weight: 800; }
@@ -414,7 +417,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v93";
+  var VERSION = "v94";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1265,6 +1268,82 @@
   }
   function signCls(x) { return x >= 0 ? "pos" : "neg"; }
 
+  // ---- Realisierte Verkaeufe ----------------------------------------
+  // Reine Eingabedaten aus dem Excel-Journal (kein Kursabruf noetig).
+  // Felder je Eintrag: t Titel, v Verkaufsdatum, e Ergebnis inkl. Div.,
+  // k tatsaechlich abgefuehrte KESt, n Ergebnis netto, s Steuerbasis,
+  // b Kurswert beim Kauf (fuer Prozent und Einsatz).
+  var realOpenYear = null;
+  var realTradeTitles = [];
+
+  function datumDe(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ""));
+    return m ? m[3] + "." + m[2] + "." + m[1] : String(s || "");
+  }
+
+  function realJahre() {
+    var d = getDepotData();
+    var list = (d && Array.isArray(d.verkauft)) ? d.verkauft : [];
+    var m = {}, jahre = [];
+    list.forEach(function (x) {
+      var y = String(x.v || "").slice(0, 4);
+      if (y.length !== 4) return;
+      if (!m[y]) { m[y] = { jahr: y, n: 0, treffer: 0, netto: 0, steuer: 0, kest: 0, items: [] }; jahre.push(y); }
+      var g = m[y];
+      g.n++; g.netto += (x.n || 0); g.steuer += (x.s || 0); g.kest += (x.k || 0);
+      if ((x.n || 0) > 0) g.treffer++;
+      g.items.push(x);
+    });
+    jahre.sort();
+    jahre.reverse();
+    return jahre.map(function (y) { return m[y]; });
+  }
+
+  function realHtml() {
+    realTradeTitles = [];
+    var jahre = realJahre();
+    if (!jahre.length) return "";
+    var ges = { n: 0, treffer: 0, netto: 0 };
+    jahre.forEach(function (g) { ges.n += g.n; ges.treffer += g.treffer; ges.netto += g.netto; });
+    var akt = jahre[0];
+
+    var html = '<div class="dep-group" style="margin-top:24px"><span>Realisiert</span>' +
+      '<span class="' + signCls(ges.netto) + '">' + fmtEur0(ges.netto) + ' €</span></div>' +
+      '<div class="dep-summary">' +
+      '<div class="cap">realisiert ' + akt.jahr + ' · nach Spesen und KESt</div>' +
+      '<div class="big ' + signCls(akt.netto) + '">' + fmtEur(akt.netto) + ' €</div>' +
+      '<div class="rows">' +
+      '<div class="dep-srow"><span class="k">Steuerbasis ' + akt.jahr + '</span><span>' + fmtEur(akt.steuer) + ' €</span></div>' +
+      '<div class="dep-srow"><span class="k">KESt bereits abgeführt</span><span>' + fmtEur(akt.kest) + ' €</span></div>' +
+      '<div class="dep-srow"><span class="k">Verkäufe ' + akt.jahr + '</span><span>' + akt.n + ' · ' + akt.treffer + ' im Plus</span></div>' +
+      '</div></div>';
+
+    jahre.forEach(function (g) {
+      var auf = (realOpenYear === g.jahr);
+      html += '<div class="dep-card real-year" data-jahr="' + g.jahr + '">' +
+        '<div class="l"><div class="t">' + g.jahr + ' ' + (auf ? "–" : "+") + '</div>' +
+        '<div class="s">' + g.n + ' Verkäufe · ' + g.treffer + ' im Plus</div></div>' +
+        '<div class="r"><div class="net ' + signCls(g.netto) + '">' + fmtEur0(g.netto) + ' €</div>' +
+        '<div class="sub">Basis ' + fmtEur0(g.steuer) + ' €</div></div></div>';
+      if (!auf) return;
+      g.items.slice().sort(function (a, b) { return (b.n || 0) - (a.n || 0); }).forEach(function (x) {
+        realTradeTitles.push(x.t || "");
+        var pct = x.b ? fmtPct((x.e || 0) / x.b) + " · " : "";
+        html += '<div class="dep-card real-trade">' +
+          '<div class="l"><div class="t"></div>' +
+          '<div class="s">' + datumDe(x.v) + ' · Einsatz ' + fmtEur0(x.b || 0) + ' €</div></div>' +
+          '<div class="r"><div class="net ' + signCls(x.n || 0) + '">' + fmtEur(x.n || 0) + ' €</div>' +
+          '<div class="sub">' + pct + 'KESt ' + fmtEur(-(x.k || 0)) + '</div></div></div>';
+      });
+    });
+
+    html += '<div class="dep-srow" style="margin-top:12px">' +
+      '<span class="k">Gesamt seit ' + jahre[jahre.length - 1].jahr + ' · ' +
+      ges.n + ' Verkäufe, ' + ges.treffer + ' im Plus</span>' +
+      '<span class="' + signCls(ges.netto) + '">' + fmtEur0(ges.netto) + ' €</span></div>';
+    return html;
+  }
+
   function getDepotData() {
     try {
       var d = JSON.parse(storeGet("depotData") || "null");
@@ -1377,6 +1456,7 @@
         }
       });
     });
+    html += realHtml();
     depotContent.innerHTML = html;
     // Titel sicher als Text setzen (kein HTML aus Daten)
     var cards = depotContent.querySelectorAll(".dep-card .t");
@@ -1384,7 +1464,19 @@
     order.forEach(function (g) {
       groups[g].forEach(function (r) { cards[i++].textContent = r.p.titel || r.p.symbol; });
     });
+    var tcards = depotContent.querySelectorAll(".real-trade .t");
+    for (var j = 0; j < tcards.length; j++) tcards[j].textContent = realTradeTitles[j] || "";
   }
+
+  // Tippen auf eine Jahreszeile klappt die Verkaeufe dieses Jahres auf/zu
+  depotContent.addEventListener("click", function (e) {
+    var t = e.target;
+    while (t && t !== depotContent && !(t.classList && t.classList.contains("real-year"))) t = t.parentNode;
+    if (!t || t === depotContent) return;
+    var j = t.getAttribute("data-jahr");
+    realOpenYear = (realOpenYear === j) ? null : j;
+    renderDepot();
+  });
 
   // ---- Seite 3: Tagesgewinn (live vs. Schlusskurs Vortag) ----
   var dayContent = document.getElementById("dayContent");
@@ -1695,7 +1787,26 @@
       alert("Eigener Umleitungsdienst aktiviert.");
       return;
     }
+    // Nur-Verkaufsjournal: ergaenzt die vorhandenen Depotdaten. So muss das
+    // grosse Journal nicht bei jeder Bestandsaenderung mitgeschickt werden.
+    if (d && Array.isArray(d.verkauft) && !Array.isArray(d.positionen)) {
+      var alt = getDepotData();
+      if (!alt) throw new Error("leer");
+      alt.verkauft = d.verkauft;
+      storeSet("depotData", JSON.stringify(alt));
+      document.getElementById("importArea").value = "";
+      importOpen = false;
+      renderDepot();
+      refresh();
+      alert(d.verkauft.length + " realisierte Verkäufe übernommen.");
+      return;
+    }
     if (!d || !Array.isArray(d.positionen) || !d.positionen.length) throw new Error("leer");
+    // Ein Bestands-Block ohne Journal loescht das Journal nicht.
+    if (!Array.isArray(d.verkauft)) {
+      var vorher = getDepotData();
+      if (vorher && Array.isArray(vorher.verkauft)) d.verkauft = vorher.verkauft;
+    }
     storeSet("depotData", JSON.stringify(d));
     document.getElementById("importArea").value = "";
     importOpen = false;
