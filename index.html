@@ -231,7 +231,8 @@
   .neg { color: #ff6b5e; }
   a.dep-card { text-decoration: none; color: inherit; }
   .real-year { cursor: pointer; }
-  .real-year:active { background: rgba(255,255,255,0.06); }
+  .real-head { cursor: pointer; }
+  .real-head:active, .real-year:active { background: rgba(255,255,255,0.06); }
   .real-trade { margin-left: 16px; background: transparent; }
   .dep-card .t.wrap { white-space: normal; line-height: 1.35; font-size: 13.5px; }
   .news-meta { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
@@ -419,7 +420,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v95";
+  var VERSION = "v96";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1275,6 +1276,7 @@
   // Felder je Eintrag: t Titel, v Verkaufsdatum, e Ergebnis inkl. Div.,
   // k tatsaechlich abgefuehrte KESt, n Ergebnis netto, s Steuerbasis,
   // b Kurswert beim Kauf (fuer Prozent und Einsatz).
+  var realOpen = false;
   var realOpenYear = null;
   var realTradeTitles = [];
 
@@ -1311,6 +1313,14 @@
 
     var html = '<div class="dep-group" style="margin-top:24px"><span>Realisiert</span>' +
       '<span class="' + signCls(ges.netto) + '">' + fmtEur0(ges.netto) + ' €</span></div>' +
+      '<div class="dep-card real-head"><div class="l">' +
+      '<div class="t">' + (realOpen ? "Details ausblenden" : "Details anzeigen") + '</div>' +
+      '<div class="s">' + ges.n + ' Verkäufe seit ' + jahre[jahre.length - 1].jahr +
+      ' · ' + ges.treffer + ' im Plus</div></div>' +
+      '<div class="r"><div class="net" style="color:var(--muted);font-size:20px">' +
+      (realOpen ? "–" : "+") + '</div></div></div>';
+    if (!realOpen) return html;
+    html +=
       '<div class="dep-summary">' +
       '<div class="cap">realisiert ' + akt.jahr + ' · nach Spesen und KESt</div>' +
       '<div class="big ' + signCls(akt.netto) + '">' + fmtEur(akt.netto) + ' €</div>' +
@@ -1339,10 +1349,6 @@
       });
     });
 
-    html += '<div class="dep-srow" style="margin-top:12px">' +
-      '<span class="k">Gesamt seit ' + jahre[jahre.length - 1].jahr + ' · ' +
-      ges.n + ' Verkäufe, ' + ges.treffer + ' im Plus</span>' +
-      '<span class="' + signCls(ges.netto) + '">' + fmtEur0(ges.netto) + ' €</span></div>';
     return html;
   }
 
@@ -1470,14 +1476,24 @@
     for (var j = 0; j < tcards.length; j++) tcards[j].textContent = realTradeTitles[j] || "";
   }
 
-  // Tippen auf eine Jahreszeile klappt die Verkaeufe dieses Jahres auf/zu
+  // Tippen klappt den Realisiert-Block bzw. ein einzelnes Jahr auf/zu
   depotContent.addEventListener("click", function (e) {
     var t = e.target;
-    while (t && t !== depotContent && !(t.classList && t.classList.contains("real-year"))) t = t.parentNode;
-    if (!t || t === depotContent) return;
-    var j = t.getAttribute("data-jahr");
-    realOpenYear = (realOpenYear === j) ? null : j;
-    renderDepot();
+    while (t && t !== depotContent) {
+      if (t.classList && t.classList.contains("real-head")) {
+        realOpen = !realOpen;
+        if (!realOpen) realOpenYear = null;
+        renderDepot();
+        return;
+      }
+      if (t.classList && t.classList.contains("real-year")) {
+        var j = t.getAttribute("data-jahr");
+        realOpenYear = (realOpenYear === j) ? null : j;
+        renderDepot();
+        return;
+      }
+      t = t.parentNode;
+    }
   });
 
   // ---- Seite 3: Tagesgewinn (live vs. Schlusskurs Vortag) ----
