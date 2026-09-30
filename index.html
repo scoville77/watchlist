@@ -368,6 +368,8 @@
       Depot-Daten einfügen (bleiben nur auf diesem Gerät gespeichert):
     </p>
     <button class="btn" id="pasteImportBtn" style="margin-bottom:10px">Aus Zwischenablage einfügen</button>
+    <button class="btn secondary" id="fileImportBtn" style="margin-bottom:10px">Aus Datei laden</button>
+    <input type="file" id="fileImportInput" accept=".json,.txt,application/json,text/plain" style="display:none">
     <textarea id="importArea" placeholder='{"kest":0.275,"positionen":[...]}' autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
     <button class="btn secondary" id="importBtn" style="margin-top:10px">Importieren</button>
     <button class="link-danger" id="deleteDataBtn" style="display:none">Alle Depot-Daten löschen</button>
@@ -417,7 +419,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "v94";
+  var VERSION = "v95";
 
   // Diese Werte werden markiert: Stern im Namen + blauer Kopfbalken
   var MARKED = ["VWCE.DE", "IUSN.DE"];
@@ -1834,6 +1836,23 @@
     } catch (e) {
       alert("Konnte die Daten nicht lesen - bitte den Block exakt einf\u00fcgen.");
     }
+  });
+  // Import aus einer Datei - spart das Kopieren langer Bloecke am Handy
+  document.getElementById("fileImportBtn").addEventListener("click", function () {
+    document.getElementById("fileImportInput").click();
+  });
+  document.getElementById("fileImportInput").addEventListener("change", function (e) {
+    var inp = e.target;
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try { tryImport(String(r.result || "")); }
+      catch (err) { alert("Datei nicht lesbar - erwartet wird der JSON-Block."); }
+      inp.value = "";
+    };
+    r.onerror = function () { alert("Datei konnte nicht gelesen werden."); inp.value = ""; };
+    r.readAsText(f);
   });
   // Klassisches Einfuegen ins Feld: automatisch importieren, wenn lesbar
   document.getElementById("importArea").addEventListener("paste", function () {
